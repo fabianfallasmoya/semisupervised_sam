@@ -1,10 +1,10 @@
 # Install:
-python>=3.8
-pytorch>=1.7
-torchvision>=0.8
-pyyaml
-numpy
-pycocotools>=2.0.2
+python>=3.8,
+pytorch>=1.7,
+torchvision>=0.8,
+pyyaml,
+numpy,
+pycocotools>=2.0.2,
 omegaconf>=2.0
 
 # To install SAM
