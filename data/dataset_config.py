@@ -26,6 +26,15 @@ class Coco2017Cfg(CocoCfg):
 
 
 @dataclass
+class CocoBearCfg(CocoCfg):
+    variant: str = 'bear'
+    splits: Dict[str, dict] = field(default_factory=lambda: dict(
+        train=dict(ann_filename='annotations/instances_train.json', img_dir='train', has_labels=True),
+        val=dict(ann_filename='annotations/instances_val.json', img_dir='val', has_labels=True),
+    ))
+
+
+@dataclass
 class Coco2014Cfg(CocoCfg):
     variant: str = '2014'
     splits: Dict[str, dict] = field(default_factory=lambda: dict(
