@@ -60,6 +60,8 @@ def create_datasets_and_loaders(args, verbose=False):
         verbose=verbose
     )
     dataset_train_labeled = datasets[0]
+    dataset_eval = None
+    dataset_train_unlabeled = None
     if len(datasets) > 2:
         dataset_train_unlabeled = datasets[1]
         dataset_eval = datasets[2]
@@ -78,16 +80,17 @@ def create_datasets_and_loaders(args, verbose=False):
         is_training=True,
         re_prob=args.reprob,
     )
+    if dataset_eval is not None:
+        # if args.val_skip > 1:
+        #     dataset_eval = SkipSubset(dataset_eval, args.val_skip)
+        loader_eval = create_loader(
+            dataset_eval,
+            img_resolution=args.img_resolution,
+            batch_size=args.batch_size_val,
+            is_training=False,
+        )
+        return loader_labeled, loader_eval
 
-    # if args.val_skip > 1:
-    #     dataset_eval = SkipSubset(dataset_eval, args.val_skip)
-    # loader_eval = create_loader(
-    #     dataset_eval,
-    #     img_resolution=args.img_resolution,
-    #     batch_size=args.batch_size_val,
-    #     is_training=False,
-    # )
-    return loader_labeled, None
 
 def run_experiment(args):
     """ Run simple experiment """
