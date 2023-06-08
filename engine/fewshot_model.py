@@ -3,6 +3,7 @@ import torch
 from torch import nn, Tensor
 from .fewshot_utils import compute_prototypes
 
+
 class FewShot(nn.Module):
     """
     Abstract class providing methods usable by all few-shot classification algorithms

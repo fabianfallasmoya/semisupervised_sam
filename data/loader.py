@@ -6,7 +6,6 @@ from .transforms import *
 from .random_erasing import RandomErasing
 #from effdet.anchors import AnchorLabeler
 from timm.data.distributed_sampler import OrderedDistributedSampler
-import os
 
 MAX_NUM_INSTANCES = 100
 
@@ -37,10 +36,14 @@ class DetectionFastCollate:
         target = dict()
         labeler_outputs = dict()
         img_tensor = torch.zeros((batch_size, *batch[0][0].shape), dtype=torch.uint8)
+        full_ann_json = dict()
         for i in range(batch_size):
             img_tensor[i] += torch.from_numpy(batch[i][0])
             labeler_inputs = {}
             for tk, tv in batch[i][1].items():
+                if tk == 'full_ann_json':
+                    full_ann_json[i] = tv
+                    continue
                 instance_info = self.instance_info.get(tk, None)
                 if instance_info is not None:
                     # target tensor is associated with a detection instance
@@ -74,7 +77,7 @@ class DetectionFastCollate:
                         target[tk] = target_tensor
                     else:
                         target_tensor = target[tk]
-                    target_tensor[i] = torch.tensor(tv, dtype=target_tensor.dtype)
+                        target_tensor[i] = torch.tensor(tv, dtype=target_tensor.dtype)
 
             if self.anchor_labeler is not None:
                 cls_targets, box_targets, num_positives = self.anchor_labeler.label_anchors(
@@ -93,8 +96,10 @@ class DetectionFastCollate:
                 labeler_outputs['label_num_positives'][i] = num_positives
         if labeler_outputs:
             target.update(labeler_outputs)
-
-        return img_tensor, target
+        if len(full_ann_json) > 0:
+            return img_tensor, target, full_ann_json
+        else:
+            return img_tensor, target
 
 
 class PrefetchLoader:
@@ -119,7 +124,17 @@ class PrefetchLoader:
         # stream = torch.cuda.Stream()
         first = True
 
-        for next_input, next_target in self.loader:
+        for nexts in self.loader:
+            if len(nexts) == 3:
+                next_input, next_target, next_full_ann_json = nexts
+                # print("\n########## Prefetch Loader ##########")
+                # print("\tTarget img_idx: ", next_target['img_idx'])
+                # print("\tTarget bbox: ", next_target['bbox'])
+                # print("\tFull ann json: ", next_full_ann_json)
+                # print("##############################\n")
+            else:
+                next_input, next_target = nexts
+                next_full_ann_json = None
             # with torch.cuda.stream(stream):
             #     next_input = next_input.cuda(non_blocking=True)
             #     next_input = next_input.float().sub_(self.mean).div_(self.std)
@@ -128,15 +143,32 @@ class PrefetchLoader:
                 next_input = self.random_erasing(next_input, next_target)
 
             if not first:
-                yield input, target
+                if full_ann_json is not None:
+                    # print("\n########## Prefetch Loader Step 2 ##########")
+                    # print("\tTarget img_idx: ", target['img_idx'])
+                    # print("\tTarget bbox: ",  target['bbox'])
+                    # print("\tFull ann json: ", full_ann_json)
+                    # print("##############################\n")
+                    yield input, target, full_ann_json
+                else:
+                    yield input, target
             else:
                 first = False
 
             # torch.cuda.current_stream().wait_stream(stream)
             input = next_input
             target = next_target
+            full_ann_json = next_full_ann_json
 
-        yield input, target
+        if full_ann_json is not None:
+            # print("\n########## Prefetch Loader Step 2 ##########")
+            # print("\tTarget img_idx: ", target['img_idx'])
+            # print("\tTarget bbox: ",  target['bbox'])
+            # print("\tFull ann json: ", full_ann_json)
+            # print("##############################\n")
+            yield input, target, full_ann_json
+        else:
+            yield input, target
 
     def __len__(self):
         return len(self.loader)
@@ -148,6 +180,15 @@ class PrefetchLoader:
     @property
     def dataset(self):
         return self.loader.dataset
+
+
+def collate_fn(batch):
+    if len(batch[0]) == 2:
+        imgs, targets = zip(*batch)
+        return imgs, targets
+    else:
+        imgs, targets, full_ann_jsons = zip(*batch)
+        return torch.stack(imgs, 0), targets, full_ann_jsons
 
 
 def create_loader(
@@ -210,7 +251,8 @@ def create_loader(
             # of samples per-process, will slightly alter validation results
             sampler = OrderedDistributedSampler(dataset)
 
-    collate_fn = collate_fn or DetectionFastCollate(anchor_labeler=anchor_labeler)
+    # collate_fn = collate_fn or DetectionFastCollate(anchor_labeler=anchor_labeler)
+
     loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=batch_size,
@@ -222,7 +264,8 @@ def create_loader(
     )
     if use_prefetcher:
         if is_training:
-            loader = PrefetchLoader(loader, mean=mean, std=std, re_prob=re_prob, re_mode=re_mode, re_count=re_count)
+            loader = PrefetchLoader(loader, mean=mean, std=std, re_prob=re_prob, 
+                                    re_mode=re_mode, re_count=re_count)
         else:
             loader = PrefetchLoader(loader, mean=mean, std=std)
 

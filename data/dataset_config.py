@@ -1,7 +1,6 @@
 """ COCO, VOC, OpenImages dataset configurations
 Copyright 2020 Ross Wightman
 """
-import os
 from dataclasses import dataclass, field
 from typing import Dict
 
@@ -28,6 +27,7 @@ class Coco2017Cfg(CocoCfg):
 @dataclass
 class CocoBearCfg(CocoCfg):
     variant: str = 'bear'
+    num_classes: int = 2
     splits: Dict[str, dict] = field(default_factory=lambda: dict(
         train=dict(ann_filename='annotations/instances_train.json', img_dir='train', has_labels=True),
         val=dict(ann_filename='annotations/instances_val.json', img_dir='val', has_labels=True),

@@ -16,7 +16,7 @@ class DetectionDatset(data.Dataset):
             and returns a transformed version. E.g, ``transforms.ToTensor``
     """
 
-    def __init__(self, data_dir, parser=None, parser_kwargs=None, transform=None):
+    def __init__(self, data_dir, parser=None, parser_kwargs=None, transform=None, verbose=False):
         super(DetectionDatset, self).__init__()
         parser_kwargs = parser_kwargs or {}
         self.data_dir = data_dir
@@ -26,7 +26,8 @@ class DetectionDatset(data.Dataset):
             assert parser is not None and len(parser.img_ids)
             self._parser = parser
         self._transform = transform
-
+        self.verbose = verbose
+        
     def __getitem__(self, index):
         """
         Args:
@@ -34,18 +35,28 @@ class DetectionDatset(data.Dataset):
         Returns:
             tuple: Tuple (image, annotations (target)).
         """
+
         img_info = self._parser.img_infos[index]
         target = dict(img_idx=index, img_size=(img_info['width'], img_info['height']))
         if self._parser.has_labels:
-            ann = self._parser.get_ann_info(index)
+            ann = self._parser.get_ann_info(index, verbose=self.verbose)
+            if self.verbose:
+                full_ann_json = ann['full_ann_json']
+                del ann['full_ann_json']
             target.update(ann)
 
         img_path = self.data_dir / img_info['file_name']
         img = Image.open(img_path).convert('RGB')
         if self.transform is not None:
             img, target = self.transform(img, target)
-
-        return img, target
+        if self.verbose:
+            # print("\n*&*&*&*&*&*&**&* Dataset GetItem &*&*&*&*&**&*&*&*&*&*&*")
+            # print("\tTarget:", target)
+            # print("\tJson:", full_ann_json)
+            # print("*&*&*&*&*&*&**&*&*&*&*&*&**&*&*&*&*&*&*\n")
+            return img, target, full_ann_json
+        else:
+            return img, target
 
     def __len__(self):
         return len(self._parser.img_ids)

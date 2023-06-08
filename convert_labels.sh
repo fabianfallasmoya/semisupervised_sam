@@ -24,7 +24,6 @@ python convert_labels_to_masks.py \
     --load-pretrained \
     --loss ${LOSS} \
     --optim ${OPTIM} \
-    --use-semi-split \
     --dataset ${DATASET} \
     --batch-size ${BATCH_SIZE} \
     --batch-size-val ${BATCH_SIZE_VAL} \

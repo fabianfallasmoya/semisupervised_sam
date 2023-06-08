@@ -18,6 +18,7 @@ from torch import nn, Tensor
 #     output = copy.deepcopy(backbone).cpu()(input_images)
 #     return tuple(output.shape[1:])
 
+
 def compute_prototypes(support_features: Tensor, support_labels: Tensor) -> Tensor:
     """
     Compute class prototypes from support features and labels

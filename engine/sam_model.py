@@ -1,6 +1,4 @@
 from segment_anything import SamAutomaticMaskGenerator, sam_model_registry, SamPredictor
-import cv2
-# import numpy as np
 
 
 class SAM:

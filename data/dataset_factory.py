@@ -16,7 +16,9 @@ from .parsers import create_parser
 from sklearn.model_selection import train_test_split
 
 
-def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, seed=42, semi_percentage=1.0):
+def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, 
+                   seed=42, semi_percentage=1.0, verbose=False):
+    
     if isinstance(splits, str):
         splits = (splits,)
     name = name.lower()
@@ -50,11 +52,11 @@ def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, se
                 # split the ids
                 y_dumpy = np.zeros(len(ids))
                 labeled_idx, _, _, _ = train_test_split(
-                ids, y_dumpy, 
-                train_size = semi_percentage / 100.0, 
-                shuffle = True, 
-                random_state = seed
-                )
+                                        ids, y_dumpy, 
+                                        train_size = semi_percentage / 100.0, 
+                                        shuffle = True, 
+                                        random_state = seed
+                                        )
                 # keep just the necessary ids
                 new_labeled['images'] = [i for i in new_labeled['images'] if i['id'] in labeled_idx]
                 new_labeled['annotations'] = [i for i in new_labeled['annotations'] if i['image_id'] in labeled_idx]
@@ -72,6 +74,7 @@ def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, se
                 datasets[f'{s}_labeled'] = dataset_cls(
                     data_dir=root / Path(split_cfg['img_dir']),
                     parser=create_parser(dataset_cfg.parser, cfg=parser_cfg_labeled),
+                    verbose=verbose
                 )
 
                 # unlabeled dataset
@@ -83,6 +86,7 @@ def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, se
                 datasets[f'{s}_unlabeled'] = dataset_cls(
                     data_dir=root / Path(split_cfg['img_dir']),
                     parser=create_parser(dataset_cfg.parser, cfg=parser_cfg_unlabeled),
+                    verbose=verbose
                 )
                 
             else:
@@ -90,9 +94,11 @@ def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, se
                     ann_filename=ann_file,
                     has_labels=split_cfg['has_labels']
                 )
+                
                 datasets[s] = dataset_cls(
                     data_dir=root / Path(split_cfg['img_dir']),
                     parser=create_parser(dataset_cfg.parser, cfg=parser_cfg),
+                    verbose=verbose
                 )
     elif name.startswith('voc'):
         if 'voc0712' in name:
