@@ -1,6 +1,6 @@
 import argparse
 from utils import seed_everything, get_parameters
-from run import create_datasets_and_loaders
+from fine_tune_sam import create_datasets_and_loaders
 from engine import SAM
 import matplotlib.pyplot as plt
 from matplotlib import patches

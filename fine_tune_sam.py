@@ -26,7 +26,7 @@ except AttributeError:
 # ------------------------------------------------------------------------------------------------
 
 
-def create_datasets_and_loaders(args):
+def create_datasets_and_loaders(args, verbose=False):
     """ Setup datasets, transforms, loaders, evaluator.
     Params
     :args: Model specific configuration dict / struct
@@ -34,17 +34,25 @@ def create_datasets_and_loaders(args):
     Returns
     :Train loader, validation loader
     """
-    # get datasets: labeled, unlabeled (according to a specific percentage),
-    # and eval.
     datasets = create_dataset(
         args.dataset, args.root, use_semi_split=args.use_semi_split,
-        semi_percentage=args.semi_percentage
+        semi_percentage=args.semi_percentage,
+        verbose=verbose
     )
-    dataset_train_labeled = datasets[0]  # labeled
-    dataset_train_unlabeled = datasets[1]  # unlabeled is not used here
-    dataset_eval = datasets[2]  # eval
+    dataset_train_labeled = datasets[0]
+    dataset_eval = None
+    dataset_train_unlabeled = None
+    if len(datasets) > 2:
+        dataset_train_unlabeled = datasets[1]
+        dataset_eval = datasets[2]
+    else:
+        dataset_eval = datasets[1]
 
-    # create pytorch loaders
+    # setup labeler in loader/collate_fn if not enabled in the model bench
+    # labeler = None
+    # if not args.bench_labeler:
+    #     labeler = AnchorLabeler(
+    #         Anchors.from_config(args), args.num_classes, match_threshold=0.5)
     loader_labeled = create_loader(
         dataset_train_labeled,
         img_resolution=args.img_resolution,
@@ -52,13 +60,16 @@ def create_datasets_and_loaders(args):
         is_training=True,
         re_prob=args.reprob,
     )
-    loader_eval = create_loader(
-        dataset_eval,
-        img_resolution=args.img_resolution,
-        batch_size=args.batch_size_val,
-        is_training=False,
-    )
-    return loader_labeled, loader_eval
+    if dataset_eval is not None:
+        # if args.val_skip > 1:
+        #     dataset_eval = SkipSubset(dataset_eval, args.val_skip)
+        loader_eval = create_loader(
+            dataset_eval,
+            img_resolution=args.img_resolution,
+            batch_size=args.batch_size_val,
+            is_training=False,
+        )
+        return loader_labeled, loader_eval
 
 
 def run_finetuning(args):
