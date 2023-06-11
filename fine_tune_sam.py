@@ -26,7 +26,7 @@ except AttributeError:
 # ------------------------------------------------------------------------------------------------
 
 
-def create_datasets_and_loaders(args, verbose=False):
+def create_datasets_and_loaders(args, verbose=False, include_masks=False):
     """ Setup datasets, transforms, loaders, evaluator.
     Params
     :args: Model specific configuration dict / struct
@@ -37,6 +37,7 @@ def create_datasets_and_loaders(args, verbose=False):
     datasets = create_dataset(
         args.dataset, args.root, use_semi_split=args.use_semi_split,
         semi_percentage=args.semi_percentage,
+        include_masks=include_masks,
         verbose=verbose
     )
     dataset_train_labeled = datasets[0]
@@ -77,7 +78,7 @@ def run_finetuning(args):
     path_output = f"./output/{args.output_folder}/{args.semi_percentage}/{args.run_name}"
 
     # STEP 1: create data loaders
-    loader_labeled, loader_eval = create_datasets_and_loaders(args)
+    loader_labeled, loader_eval = create_datasets_and_loaders(args, include_masks=True)
 
     # STEP 2: create a SAM model
     sam_checkpoint = "sam_vit_b_01ec64.pth"

@@ -228,11 +228,11 @@ def convert_labels(args: argparse.Namespace):
     loader_labeled, loader_eval = create_datasets_and_loaders(args, verbose=True)
 
     print("Converting labels for the trained data")
-    # convert_labels_for_single_loader(args,
-                                    #  loader_labeled,
-                                    #  instances_json_path='annotations/instances_train.json',
-                                    #  masks_save_path='annotations/masks_train',
-                                    #  json_save_path='annotations/segmentation_masks_train.json')
+    convert_labels_for_single_loader(args,
+                                     loader_labeled,
+                                     instances_json_path='annotations/instances_train.json',
+                                     masks_save_path='annotations/masks_train',
+                                     json_save_path='annotations/segmentation_masks_train.json')
 
     print("Converting labels for the eval data")
     convert_labels_for_single_loader(args,

@@ -16,7 +16,8 @@ class DetectionDatset(data.Dataset):
             and returns a transformed version. E.g, ``transforms.ToTensor``
     """
 
-    def __init__(self, data_dir, parser=None, parser_kwargs=None, transform=None, verbose=False):
+    def __init__(self, data_dir, parser=None, parser_kwargs=None, transform=None, 
+                 include_masks=False, verbose=False):
         super(DetectionDatset, self).__init__()
         parser_kwargs = parser_kwargs or {}
         self.data_dir = data_dir
@@ -27,6 +28,7 @@ class DetectionDatset(data.Dataset):
             self._parser = parser
         self._transform = transform
         self.verbose = verbose
+        self.include_masks = include_masks
         
     def __getitem__(self, index):
         """

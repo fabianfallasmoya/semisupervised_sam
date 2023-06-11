@@ -27,12 +27,20 @@ class Coco2017Cfg(CocoCfg):
 @dataclass
 class CocoBearCfg(CocoCfg):
     variant: str = 'bear'
-    num_classes: int = 2
+    num_classes: int = 1
     splits: Dict[str, dict] = field(default_factory=lambda: dict(
         train=dict(ann_filename='annotations/instances_train.json', img_dir='train', has_labels=True),
         val=dict(ann_filename='annotations/instances_val.json', img_dir='val', has_labels=True),
     ))
 
+@dataclass
+class CocoBearMaskCfg(CocoCfg):
+    variant: str = 'bear'
+    num_classes: int = 1
+    splits: Dict[str, dict] = field(default_factory=lambda: dict(
+        train=dict(ann_filename='annotations/segmentation_masks_train.json', img_dir='train', has_labels=True),
+        val=dict(ann_filename='annotations/segmentation_masks_val.json', img_dir='val', has_labels=True),
+    ))
 
 @dataclass
 class Coco2014Cfg(CocoCfg):

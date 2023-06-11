@@ -16,8 +16,8 @@ from .parsers import create_parser
 from sklearn.model_selection import train_test_split
 
 
-def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False, 
-                   seed=42, semi_percentage=1.0, verbose=False):
+def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False,
+                   seed=42, semi_percentage=1.0, include_masks=False, verbose=False):
     
     if isinstance(splits, str):
         splits = (splits,)
@@ -29,7 +29,10 @@ def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False,
         if 'coco2014' in name:
             dataset_cfg = Coco2014Cfg()
         elif 'cocobear' in name:
-            dataset_cfg = CocoBearCfg()
+            if include_masks:
+                dataset_cfg = CocoBearMaskCfg()
+            else:
+                dataset_cfg = CocoBearCfg()
         else:
             dataset_cfg = Coco2017Cfg()
 
@@ -92,12 +95,14 @@ def create_dataset(name, root, splits=('train', 'val'), use_semi_split=False,
             else:
                 parser_cfg = CocoParserCfg(
                     ann_filename=ann_file,
+                    include_masks=include_masks,
                     has_labels=split_cfg['has_labels']
                 )
                 
                 datasets[s] = dataset_cls(
                     data_dir=root / Path(split_cfg['img_dir']),
                     parser=create_parser(dataset_cfg.parser, cfg=parser_cfg),
+                    include_masks=include_masks,
                     verbose=verbose
                 )
     elif name.startswith('voc'):
