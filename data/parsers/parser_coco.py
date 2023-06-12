@@ -67,13 +67,13 @@ class CocoParser(Parser):
         if masks:
             masks = np.array(masks, ndmin=2, dtype=np.float32)
         else:
-            masks = np.zeros((0, 4), dtype=np.float32)  # TODO: fixthis
+            masks = np.array([], dtype=np.int64)
 
         if self.include_bboxes_ignore:
             if masks_ignore:
                 masks_ignore = np.array(masks_ignore, ndmin=2, dtype=np.float32)
             else:
-                masks_ignore = np.zeros((0, 4), dtype=np.float32)  # TODO: fixthis
+                masks_ignore = np.array([], dtype=np.int64)
         
         ann = dict(mask=masks)
 
