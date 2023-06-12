@@ -6,6 +6,7 @@ import numpy as np
 from .fabian_COCO import COCO
 from .parser import Parser
 from .parser_config import CocoParserCfg
+from PIL import Image
 
 
 class CocoParser(Parser):
@@ -24,10 +25,12 @@ class CocoParser(Parser):
        
         self._load_annotations (cfg.ann_filename, cfg.json_dict)
 
-
     def get_ann_info(self, idx, verbose=False):        
         img_id = self.img_ids[idx]
-        return self._parse_img_ann(img_id, verbose=verbose)
+        if self.include_masks:
+            return self._parse_img_ann_segm(img_id, verbose=verbose)
+        else:
+            return self._parse_img_ann(img_id, verbose=verbose)
 
     def _load_annotations(self, ann_file, json_):
         assert self.coco is None
@@ -46,6 +49,40 @@ class CocoParser(Parser):
             self.img_ids.append(img_id)
             self.img_infos.append(info)
 
+    def _parse_img_ann_segm(self, img_id, verbose=False):
+        ann_ids = self.coco.getAnnIds(imgIds=[img_id])
+        ann_info = self.coco.loadAnns(ann_ids)
+        masks = []
+        masks_ignore = []
+        for i, ann in enumerate(ann_info):
+            if ann.get('ignore', False):
+                continue
+            mask_file_path = ann['mask_file_path']
+            mask = np.array(Image.open(mask_file_path))
+            if ann.get('iscrowd', False):
+                if self.include_bboxes_ignore:
+                    masks_ignore.append(mask)
+            else:
+                masks.append(mask)
+        if masks:
+            masks = np.array(masks, ndmin=2, dtype=np.float32)
+        else:
+            masks = np.zeros((0, 4), dtype=np.float32)  # TODO: fixthis
+
+        if self.include_bboxes_ignore:
+            if masks_ignore:
+                masks_ignore = np.array(masks_ignore, ndmin=2, dtype=np.float32)
+            else:
+                masks_ignore = np.zeros((0, 4), dtype=np.float32)  # TODO: fixthis
+        
+        ann = dict(mask=masks)
+
+        if self.include_bboxes_ignore:
+            ann['mask_ignore'] = masks_ignore
+
+        return ann
+                
+                
     def _parse_img_ann(self, img_id, verbose=False):
         ann_ids = self.coco.getAnnIds(imgIds=[img_id])
         ann_info = self.coco.loadAnns(ann_ids)
