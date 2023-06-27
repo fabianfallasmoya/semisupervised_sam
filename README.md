@@ -1,14 +1,13 @@
 # Install:
-python>=3.8
-pytorch>=1.7
-torchvision>=0.8
-pyyaml
-numpy
-pycocotools>=2.0.2
-omegaconf>=2.0
+- python>=3.8
+- pip3 install torch torchvision torchaudio 
+- pip install timm
+- pip install PyYAML
+- pip install pycocotools
+- pip install omegaconf
 
 # To install SAM
-pip install git+https://github.com/facebookresearch/segment-anything.git
+- pip install git+https://github.com/facebookresearch/segment-anything.git
 
 # Other resources
 - official Github repo: https://github.com/facebookresearch/segment-anything
