@@ -1,4 +1,4 @@
-GPU_NUM=0
+GPU_NUM=3
 export CUDA_VISIBLE_DEVICES=${GPU_NUM}
 MODELS=( 'TIMM NAME' ) 
 ROOT="../../../share/semi_supervised/COCO_BEARS/coco_bear/"
@@ -13,7 +13,7 @@ IMG_RESOLUTION=1024
 NEW_SAMPLE_SIZE=256
 NUMA=0
 SEED=10
-SAM_MODEL="b"
+SAM_MODEL="h"
 
 for current_model in "${MODELS[@]}"
 do
