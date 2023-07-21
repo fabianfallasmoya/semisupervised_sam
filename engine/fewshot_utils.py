@@ -36,3 +36,16 @@ def compute_prototypes(support_features: Tensor, support_labels: Tensor) -> Tens
             for label in range(n_way)
         ]
     )
+
+def compute_prototypes_singleclass(support_features: Tensor) -> Tensor:
+    """
+    Compute class prototypes from support features and labels
+    Args:
+        support_features: for each instance in the support set, its feature vector
+        support_labels: for each instance in the support set, its label
+
+    Returns:
+        for each label of the support set, the average feature vector of instances with this label
+    """
+    # Prototype i is the mean of all instances of features corresponding to labels == i
+    return support_features.mean(0)

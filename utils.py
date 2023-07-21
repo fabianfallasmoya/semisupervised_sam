@@ -53,6 +53,9 @@ def get_parameters():
     parser.add_argument('--aug-method', type=str, default=Constants_AugMethod.NO_AUGMENTATION)
     parser.add_argument('--img-resolution', type=int, default=512)
     parser.add_argument('--new-sample-size', type=int, default=224)
+    parser.add_argument('--batch-size-labeled', type=int, default=1)
+    parser.add_argument('--batch-size-unlabeled', type=int, default=4)
+
     # add_bool_arg(parser, 'store-val', default=False) 
 
     # general

@@ -11,29 +11,28 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES": "3"},
+            "env": {"CUDA_VISIBLE_DEVICES": "1"},
             "args": [
-                "--root", "../../../share/semi_supervised/COCO_BEARS/coco_bear/",
+                "--root", "../../../share/semi_supervised/pineapples/PINEAPPLES2_5mts_nosplits", 
                 "--num-classes","1",
                 "--load-pretrained",
-                "--timm-model", "swinv2_base_window8_256",
+                "--timm-model", "swinv2_base_window8_256.ms_in1k",
                 "--loss","mae",
                 "--optim", "sgd",
                 "--val-freq", "1",
                 "--use-semi-split",
                 "--semi-percentage", "1.0",
-                "--epochs","20",
                 "--dataset", "coco2017",
                 "--batch-size","4",
                 "--batch-size-val", "1",
                 "--aug-method","rand_augmentation",
                 "--img-resolution", "1024",
-                "--new-sample-size", "256",
-                "--numa","3",
+                "--new-sample-size", "256", 
+                "--numa","1",
                 "--output-folder","testing",
                 "--run-name","temp",
                 "--seed","10",
-                "--sam-model","b"
+                "--sam-model","h"
                 ]
         }
     ]

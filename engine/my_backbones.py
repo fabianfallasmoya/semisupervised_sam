@@ -7,8 +7,10 @@ import torch.nn as nn
 class Timm_head_names:
     RESNET18 = 'resnet18'
     RESNETV2_50 = 'resnetv2_50'
-    SWINV2_BASE_WINDOW8_256 = 'swinv2_base_window8_256'
+    SWINV2_BASE_WINDOW8_256 = 'swinv2_base_window8_256.ms_in1k'
     RESNETRS_420 = "resnetrs420"
+    RESTNET10 = "resnet10t.c3_in1k"
+    ViT = "vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k"
 
 
 class Identity(nn.Module):
@@ -25,17 +27,24 @@ class MyBackbone(nn.Module):
         super(MyBackbone,self).__init__()
         self.backbone = timm.create_model(model_name, pretrained=pretrained)
         temp_input_size = 32
-        
 
         # different types of head
-        if model_name == Timm_head_names.RESNET18 or model_name == Timm_head_names.RESNETRS_420:
+        if model_name == Timm_head_names.RESNET18 or \
+            model_name == Timm_head_names.RESNETRS_420 or \
+            model_name == Timm_head_names.RESTNET10:
             self.backbone.fc = Identity()
         elif model_name == Timm_head_names.RESNETV2_50:
             self.backbone.head.fc = Identity()
-        if model_name == Timm_head_names.SWINV2_BASE_WINDOW8_256:
+        elif model_name == Timm_head_names.SWINV2_BASE_WINDOW8_256:
             #(norm): LayerNorm((1024,), eps=1e-05, elementwise_affine=True)
             #(head): Linear(in_features=1024, out_features=1000, bias=True)
+            self.backbone.head.fc = Identity()
+            self.backbone.head.flatten = Identity()
+            model_name=model_name.split('.')[0]
+            temp_input_size = int(model_name.split('_')[-1])
+        elif model_name == Timm_head_names.ViT:
             self.backbone.head = Identity()
+            model_name=model_name.split('.')[0]
             temp_input_size = int(model_name.split('_')[-1])
 
         # if freeze_all:

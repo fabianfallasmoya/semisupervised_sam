@@ -3,7 +3,7 @@ import warnings
 import torch
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 from engine.my_backbones import MyBackbone
-from engine.prototypical_networks import PrototypicalNetworks
+from engine.prototypical_networks import PrototypicalNetworks, PrototypicalNetworks_SingleClass
 from utils import Constants_AugMethod, add_bool_arg
 try:
     from apex import amp
@@ -98,18 +98,19 @@ def run_experiment(args):
     )
     # labels start from index 1 to n, translate to start from 0 to n.
     labels = [i-1 for i in labels]
-    # to tensors
-    imgs = torch.stack(imgs).to('cuda')
-    labels = torch.Tensor(labels).to('cuda')
     # one additional class for every class
     num_classes = args.num_classes * 2
 
     # STEP 3: create few-shot model 
     backbone = MyBackbone(
-        args.timm_model, args.load_pretrained, args.num_classes
+        args.timm_model, args.load_pretrained, num_classes
     )
     fs_model = PrototypicalNetworks(backbone, use_softmax=False).to('cuda')
+    
     #  create the prototypes
+    # to tensors
+    # imgs = torch.stack(imgs).to('cuda')
+    # labels = torch.Tensor(labels).to('cuda')
     fs_model.process_support_set(imgs, labels)
 
     # STEP 4: run inferences using SAM
@@ -129,9 +130,52 @@ def run_experiment(args):
     )
     eval_sam(coco_gt, image_ids, filepath)
 
+def run_experiment_singleclass(args):
+    """ Run simple experiment """
+    path_output = f"./output/{args.output_folder}/{args.semi_percentage}/{args.run_name}"
+
+    # STEP 1: create data loaders
+    loader_labeled, loader_eval = create_datasets_and_loaders(args)
+    
+    # STEP 2: get the raw support set
+    imgs, _ = get_batch_prototypes(
+        loader_labeled, args.new_sample_size, args.num_classes, args.img_resolution,
+        False
+    )
+    print("------------------")
+    print(len(imgs))
+    print("------------------")
+
+    # STEP 3: create few-shot model 
+    backbone = MyBackbone(
+        args.timm_model, args.load_pretrained, args.num_classes
+    )
+    fs_model = PrototypicalNetworks_SingleClass(backbone, use_softmax=False).to('cuda')
+    
+    #  create the prototypes
+    fs_model.process_support_set(imgs)
+    fs_model.forward_groundtruth(imgs)
+
+    # STEP 4: run inferences using SAM
+    sam = SAM(args)
+    mask_gen = sam.get_simple_mask()
+
+    # STEP 5: classify these inferences using the few-shot model
+    filepath = f"weights/bbox_results.json"
+    MAX_IMAGES = 10000
+    VAL_IMGS = str(loader_eval.dataset.data_dir)
+    coco_gt = COCO(f"{str(loader_eval.dataset.data_dir.parent)}/annotations/instances_val2017.json")
+    image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+
+    save_inferences_singleclass(
+        fs_model, mask_gen, image_ids, coco_gt, VAL_IMGS, 
+        args.new_sample_size, args.num_classes, filepath
+    )
+    eval_sam(coco_gt, image_ids, filepath)
+
 if __name__ == '__main__':
     args = get_parameters()
     throttle_cpu(args.numa)
     if not args.seed == None:
         seed_everything(args.seed)
-    run_experiment(args)
+    run_experiment_singleclass(args)

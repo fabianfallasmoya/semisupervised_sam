@@ -8,7 +8,11 @@ from metrics import intersection_over_union, intersection
 import random
 
 def get_batch_prototypes(
-    dataloader_fewshot, sample_resolution:int=None, num_classes:float=None, img_resolution:int=None):
+    dataloader_fewshot, 
+    sample_resolution:int=None, 
+    num_classes:float=None, 
+    img_resolution:int=None,
+    get_background_samples:bool=True):
     """ Get the images that will be used to calculate the prototypes.
 
     Params:
@@ -29,13 +33,18 @@ def get_batch_prototypes(
         # ITERATE: IMAGE
         for idx in list(range(batch[1]['img_idx'].numel())):
             # get background samples
-            imgs_b, labels_b = get_background(batch, idx, trans, ss, num_classes, img_resolution)
+            if get_background_samples:
+                imgs_b, labels_b = get_background(batch, idx, trans, ss, num_classes, img_resolution)
             # get foreground samples
             imgs_f, labels_f = get_foreground(batch, idx, trans)
 
             # accumulate
-            imgs += imgs_b + imgs_f
-            labels += labels_b + labels_f
+            if get_background_samples:
+                imgs += imgs_b + imgs_f
+                labels += labels_b + labels_f
+            else:
+                imgs += imgs_f
+                labels += labels_f
             count_imgs += 1
     return imgs, labels
 
@@ -166,11 +175,11 @@ def get_background(batch, idx, transform, selective_search, num_classes, img_res
         results = list(zip(proposal_areas, coords, labels_temp))
         results.sort(key = lambda x: x[0], reverse=True)
         proposal_areas, coords, labels_temp = zip(*results)
-        proposal_areas = proposal_areas[0:int(len(proposal_areas)*.2)]
+        proposal_areas = proposal_areas[0:int(len(proposal_areas)*.2)] # top 20%
         coords = coords[0:int(len(coords)*.2)] #
         labels_temp = labels_temp[0:int(len(labels_temp)*.2)]
         if len(labels_temp) > 1:
-            indices = random.sample(range(0, len(labels_temp)), k=1)
+            indices = random.sample(range(0, len(labels_temp)), k=4)
             coords = [coords[i] for i in indices]
             labels_temp = [labels_temp[i] for i in indices]
 

@@ -7,6 +7,9 @@ class SAM:
         if args.sam_model == 'b':
             self.checkpoint = "weights/sam_vit_b_01ec64.pth"
             self.model_type = "vit_b"
+        elif args.sam_model == 'h':
+            self.checkpoint = "weights/sam_vit_h_4b8939.pth"
+            self.model_type = "vit_h"
         else:
             RuntimeError("No sam config found")
         self.model = sam_model_registry[self.model_type](checkpoint=self.checkpoint).to('cuda')
@@ -26,10 +29,10 @@ class SAM:
         mask_generator_ = SamAutomaticMaskGenerator(
             model=self.model,
             points_per_side=32,
-            pred_iou_thresh=0.9,
-            stability_score_thresh=0.96,
-            crop_n_layers=1,
-            crop_n_points_downscale_factor=1,
+            # pred_iou_thresh=0.9,
+            # stability_score_thresh=0.96,
+            # crop_n_layers=1, default:0
+            # crop_n_points_downscale_factor=1,default:1
             min_mask_region_area=100,  # Requires open-cv to run post-processing
             output_mode="coco_rle",
         )
