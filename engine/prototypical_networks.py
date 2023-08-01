@@ -56,7 +56,7 @@ class PrototypicalNetworks(FewShot):
             for img in support_images:
                 t_temp = self.backbone.forward(img.unsqueeze(dim=0).to('cuda'))
                 support_features.append(t_temp.squeeze().cpu())
-        self.backbone.train()
+        # self.backbone.train()
         
         # get prototypes and save them into cuda memory
         support_features = torch.stack(support_features)

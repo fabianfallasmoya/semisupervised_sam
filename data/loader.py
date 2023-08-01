@@ -37,8 +37,13 @@ class DetectionFastCollate:
         target = dict()
         labeler_outputs = dict()
         img_tensor = torch.zeros((batch_size, *batch[0][0].shape), dtype=torch.uint8)
+
         for i in range(batch_size):
-            img_tensor[i] += torch.from_numpy(batch[i][0])
+            if type(batch[i][0]).__module__ == np.__name__:
+                img_tensor[i] += torch.from_numpy(batch[i][0])
+            else:
+                img_tensor[i] += batch[i][0]
+
             labeler_inputs = {}
             for tk, tv in batch[i][1].items():
                 instance_info = self.instance_info.get(tk, None)
@@ -61,20 +66,29 @@ class DetectionFastCollate:
                 else:
                     # target tensor is an image-level annotation / metadata
                     if i == 0:
-                        # first batch elem, create destination tensors
-                        if isinstance(tv, (tuple, list)):
-                            # per batch elem sequence
-                            shape = (batch_size, len(tv))
-                            dtype = torch.float32 if isinstance(tv[0], (float, np.floating)) else torch.int32
+                        if tk != 'img_filename':
+                        
+                            # first batch elem, create destination tensors
+                            if isinstance(tv, (tuple, list)):
+                                # per batch elem sequence
+                                shape = (batch_size, len(tv))
+                                dtype = torch.float32 if isinstance(tv[0], (float, np.floating)) else torch.int32
+                            else:
+                                # per batch elem scalar
+                                shape = batch_size,
+                                dtype = torch.float32 if isinstance(tv, (float, np.floating)) else torch.int64
+                            target_tensor = torch.zeros(shape, dtype=dtype)
+                            target[tk] = target_tensor
                         else:
-                            # per batch elem scalar
-                            shape = batch_size,
-                            dtype = torch.float32 if isinstance(tv, (float, np.floating)) else torch.int64
-                        target_tensor = torch.zeros(shape, dtype=dtype)
-                        target[tk] = target_tensor
+                            target[tk] = []
                     else:
-                        target_tensor = target[tk]
-                    target_tensor[i] = torch.tensor(tv, dtype=target_tensor.dtype)
+                        if tk != 'img_filename':
+                            target_tensor = target[tk]
+
+                    if tk != 'img_filename':
+                        target_tensor[i] = torch.tensor(tv, dtype=target_tensor.dtype)
+                    else:
+                        target[tk].append(tv)
 
             if self.anchor_labeler is not None:
                 cls_targets, box_targets, num_positives = self.anchor_labeler.label_anchors(
@@ -106,8 +120,10 @@ class PrefetchLoader:
             re_prob=0.,
             re_mode='pixel',
             re_count=1,
+            normalize=False
             ):
         self.loader = loader
+        self.normalize = normalize
         # self.mean = torch.tensor([x * 255 for x in mean]).cuda().view(1, 3, 1, 1)
         # self.std = torch.tensor([x * 255 for x in std]).cuda().view(1, 3, 1, 1)
         if re_prob > 0.:
@@ -121,9 +137,10 @@ class PrefetchLoader:
 
         for next_input, next_target in self.loader:
             # with torch.cuda.stream(stream):
-            #     next_input = next_input.cuda(non_blocking=True)
-            #     next_input = next_input.float().sub_(self.mean).div_(self.std)
-            #     next_target = {k: v.cuda(non_blocking=True) for k, v in next_target.items()}
+            # next_input = next_input.cuda(non_blocking=True)
+            if self.normalize:
+                next_input = next_input.float().sub_(self.mean).div_(self.std)
+            # next_target = {k: v.cuda(non_blocking=True) for k, v in next_target.items()}
             if self.random_erasing is not None:
                 next_input = self.random_erasing(next_input, next_target)
 
@@ -169,6 +186,7 @@ def create_loader(
         anchor_labeler=None,
         transform_fn=None,
         collate_fn=None,
+        normalize_img=False
 ):
     if isinstance(img_resolution, tuple):
         img_size = img_resolution[-2:]
@@ -222,8 +240,13 @@ def create_loader(
     )
     if use_prefetcher:
         if is_training:
-            loader = PrefetchLoader(loader, mean=mean, std=std, re_prob=re_prob, re_mode=re_mode, re_count=re_count)
+            loader = PrefetchLoader(loader, mean=mean, std=std, 
+                re_prob=re_prob, re_mode=re_mode, re_count=re_count,
+                normalize=normalize_img
+            )
         else:
-            loader = PrefetchLoader(loader, mean=mean, std=std)
+            loader = PrefetchLoader(loader, mean=mean, std=std,
+                normalize=normalize_img
+            )
 
     return loader

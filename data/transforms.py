@@ -37,6 +37,35 @@ class ImageToTensor:
         np_img = np.moveaxis(np_img, 2, 0)  # HWC to CHW
         return torch.from_numpy(np_img).to(dtype=self.dtype), annotations
 
+class NormalizeImg_np:
+
+    def __init__(self): 
+        self.mean = 255 * np.array([0.485, 0.456, 0.406])
+        self.std = 255 * np.array([0.229, 0.224, 0.225])
+
+    def __call__(self, np_img, annotations: dict):
+        # np_img format: HWC
+        res_np = (np_img - self.mean ) / self.std
+        res_np = np.moveaxis(res_np, 2, 0)  # HWC to CHW
+
+        return res_np, annotations
+        
+class NormalizeImg_torch:
+
+    def __init__(self): 
+        self.mean_t = 255 * torch.tensor([0.485, 0.456, 0.406])
+        self.std_t = 255 * torch.tensor([0.229, 0.224, 0.225])
+
+    def __call__(self, img, annotations: dict):
+        # np_img format: HWC
+        # normalizing torch tensor: https://sparrow.dev/pytorch-normalize/
+        # img_tensor = torch.from_numpy(img)
+        # img_tensor = img_tensor.type(torch.float32)
+        img_tensor = img.permute(-1, 0, 1)
+        res_tensor = (img_tensor - self.mean_t[:, None, None]) / self.std_t[:, None, None]
+
+        return res_tensor, annotations
+
 
 def _pil_interp(method):
     if method == 'bicubic':
@@ -284,33 +313,68 @@ def transforms_coco_train(
     image_tf = Compose(image_tfl)
     return image_tf
 
-class Transforms_fabian():
+def transforms_toNumpy():
+    image_tfl = [
+        ImageToNumpy(),
+        # NormalizeImg_torch(),
+        # ImageToNumpy(),
+        # NormalizeImg_np(),
+    ]
+
+    image_tf = Compose(image_tfl)
+    return image_tf
+
+
+class Transform_Normalization():
     """
     Class with transformation methods
     """
-
-    def __init__(self, img_size=224) -> None:
-        self.img_size=img_size
+    def __init__(self, 
+        size:int = 32, 
+        force_resize:bool = False, 
+        keep_aspect_ratio:bool = False) -> None:
+        """ Normalization method, also, resize img if necessary.
+        """
         self.mean = 255 * torch.tensor([0.485, 0.456, 0.406])
         self.std = 255 * torch.tensor([0.229, 0.224, 0.225])
+        self.size = size
+        self.force_resize = force_resize
+        self.keep_aspect_ratio = keep_aspect_ratio
 
-    def preprocess(self, sample):
-        """ transform a pil image to tensor and normalize 
-        Check: https://sparrow.dev/pytorch-normalize/
-        Params
-        :sample (pil) -> image I want to transform
-        Return
-        :(torch) -> resized tensor version
+    def preprocess(self, img_pil):
+        """ normalize tensor
         """
-        # resize 
-        newsize = (self.img_size, self.img_size)
-        img = sample.resize(newsize)
-        img_np = np.array(img)
+        # resize to min size IF NECESSARY
+        w,h = img_pil.size
+        h_new = w_new = 0.
+        if (w < self.size or h < self.size) or self.force_resize:
+            if w < h:
+                h_new = (h * self.size) // w
+                w_new = self.size
+            else:
+                w_new = (w * self.size) // h
+                h_new = self.size
+            if self.keep_aspect_ratio:
+                img_pil = img_pil.resize((w_new,h_new))
+            else:
+                img_pil = img_pil.resize((self.size,self.size))
+        
+        x = torch.from_numpy(np.array(img_pil))
+        x = x.type(torch.float32)
+        x = x.permute(-1, 0, 1)
+        x = (x - self.mean[:, None, None]) / self.std[:, None, None]
 
-        # to tensor and normalize
-        img_tensor = torch.as_tensor(
-            np.ascontiguousarray(img_np.transpose(2, 0, 1))
-        )
-        img_tensor = img_tensor.type(torch.float32)
-        res = (img_tensor - self.mean[:, None, None]) / self.std[:, None, None]
-        return res
+        return x
+
+        # # resize 
+        # newsize = (self.img_size, self.img_size)
+        # img = sample.resize(newsize)
+        # img_np = np.array(img)
+
+        # # to tensor and normalize
+        # img_tensor = torch.as_tensor(
+        #     np.ascontiguousarray(img_np.transpose(2, 0, 1))
+        # )
+        # img_tensor = img_tensor.type(torch.float32)
+        # res = (img_tensor - self.mean[:, None, None]) / self.std[:, None, None]
+        # return res

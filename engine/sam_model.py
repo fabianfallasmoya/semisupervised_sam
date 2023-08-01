@@ -1,5 +1,10 @@
 from segment_anything import SamAutomaticMaskGenerator
 from segment_anything import sam_model_registry
+import numpy as np
+import torch
+import torchvision
+from PIL import Image
+
 
 class SAM:
 
@@ -13,8 +18,9 @@ class SAM:
         else:
             RuntimeError("No sam config found")
         self.model = sam_model_registry[self.model_type](checkpoint=self.checkpoint).to('cuda')
+        self.mask_generator = None
 
-    def get_simple_mask(self):
+    def load_simple_mask(self):
         #There are several tunable parameters in automatic mask generation that control 
         # how densely points are sampled and what the thresholds are for removing low 
         # quality or duplicate masks. Additionally, generation can be automatically 
@@ -36,7 +42,38 @@ class SAM:
             min_mask_region_area=100,  # Requires open-cv to run post-processing
             output_mode="coco_rle",
         )
-        return mask_generator_
+        self.mask_generator = mask_generator_
+
+    def get_unlabeled_sam(self, batch, idx, transform):
+        """ From a batch and its index get samples 
+        Params
+        :batch (<tensor, >)
+        """
+        imgs = []
+        box_coords = []
+        scores = []
+
+        # batch[0] has the images    
+        img = batch[0][idx].cpu().numpy().transpose(1,2,0)
+        img_pil = Image.fromarray(img)
+
+        # run sam to create proposals
+        masks = self.mask_generator.generate(img)
+
+        for ann in masks:
+            xywh = ann['bbox']
+            xyxy = torchvision.ops.box_convert(
+                torch.tensor(xywh), in_fmt='xywh', out_fmt='xyxy'
+            )
+            # get img
+            crop = img_pil.crop(np.array(xyxy))  
+            sample = transform.preprocess(crop)
+
+            # accumulate
+            imgs.append(sample)
+            box_coords.append(xywh)
+            scores.append(float(ann['predicted_iou']))
+        return imgs, box_coords, scores
 
 
         

@@ -1,4 +1,4 @@
-from .my_backbones import *
+from .feature_extractor import *
 from .early_stopping import EarlyStopper
 from .easyfsl_utils import *
 from .fewshot_model import *

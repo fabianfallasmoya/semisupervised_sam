@@ -11,7 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {"CUDA_VISIBLE_DEVICES": "1"},
+            "env": {"CUDA_VISIBLE_DEVICES": "2"},
             "args": [
                 "--root", "../../../share/semi_supervised/pineapples/PINEAPPLES2_5mts_nosplits", 
                 "--num-classes","1",
@@ -25,14 +25,21 @@
                 "--dataset", "coco2017",
                 "--batch-size","4",
                 "--batch-size-val", "1",
+                "--batch-size-labeled","1",
+                "--batch-size-unlabeled", "2",
+                "--ood-labeled-samples", "1",
+                "--ood-unlabeled-samples", "2",
                 "--aug-method","rand_augmentation",
                 "--img-resolution", "1024",
                 "--new-sample-size", "256", 
-                "--numa","1",
-                "--output-folder","testing",
+                "--numa","2",
+                "--output-folder","PINEAPPLES2_5mts_nosplits",
                 "--run-name","temp",
                 "--seed","10",
-                "--sam-model","h"
+                "--sam-model","h",
+                "--ood-thresh", "0.8",
+                "--ood-histogram-bins", "15",
+                "--method", "sam_ood" //sam_alone sam_fewshot_single_class sam_fewshot_two_classes sam_ood
                 ]
         }
     ]

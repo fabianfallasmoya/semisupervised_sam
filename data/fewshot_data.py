@@ -1,7 +1,7 @@
 from random import sample
 import torch
 from PIL import Image
-from .transforms import Transforms_fabian
+from .transforms import Transform_Normalization
 import numpy as np
 import cv2
 from metrics import intersection_over_union, intersection
@@ -9,10 +9,9 @@ import random
 
 def get_batch_prototypes(
     dataloader_fewshot, 
-    sample_resolution:int=None, 
     num_classes:float=None, 
-    img_resolution:int=None,
-    get_background_samples:bool=True):
+    get_background_samples:bool=True,
+    trans_norm=None):
     """ Get the images that will be used to calculate the prototypes.
 
     Params:
@@ -21,7 +20,6 @@ def get_batch_prototypes(
     :imgs (tensor) -> all images from the bounding boxes.
     :labels (tensor) -> labels of the bounding boxes.
     """
-    trans = Transforms_fabian(sample_resolution)
     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
     imgs = []
     labels = []
@@ -34,9 +32,9 @@ def get_batch_prototypes(
         for idx in list(range(batch[1]['img_idx'].numel())):
             # get background samples
             if get_background_samples:
-                imgs_b, labels_b = get_background(batch, idx, trans, ss, num_classes, img_resolution)
+                imgs_b, labels_b = get_background(batch, idx, trans_norm, ss, num_classes)
             # get foreground samples
-            imgs_f, labels_f = get_foreground(batch, idx, trans)
+            imgs_f, labels_f = get_foreground(batch, idx, trans_norm)
 
             # accumulate
             if get_background_samples:
@@ -48,7 +46,7 @@ def get_batch_prototypes(
             count_imgs += 1
     return imgs, labels
 
-def get_foreground(batch, idx, transform):
+def get_foreground(batch, idx, transform_norm):
     """ From a batch and its index get samples """
     imgs = []
     labels = []
@@ -72,12 +70,12 @@ def get_foreground(batch, idx, transform):
 
         # get img
         crop = img_pil.crop(bbox)  
-        new_sample = transform.preprocess(crop)
+        new_sample = transform_norm.preprocess(crop)
         labels.append(classes[idx_bbox].item())
         imgs.append(new_sample)
     return imgs, labels
 
-def get_background(batch, idx, transform, selective_search, num_classes, img_resolution):
+def get_background(batch, idx, transform_norm, selective_search, num_classes):
     """ From a batch and its index get samples """
     imgs = []
     labels = []
@@ -87,17 +85,6 @@ def get_background(batch, idx, transform, selective_search, num_classes, img_res
     # 1. GET bbox proposals from selective search
     image = batch[0][idx].cpu().numpy().transpose(1,2,0)
     img_pil = Image.fromarray(image)
-    orig_width, orig_height = batch[1]['img_size'][idx].tolist()
-
-    # the image comes with padding, this code removes the padding
-    # using the original resolution
-    if orig_width > orig_height:
-        new_width = img_resolution
-        new_height = (orig_height * img_resolution) / orig_width
-    else:
-        new_height = img_resolution
-        new_width = (orig_width * img_resolution) / orig_height
-    img_pil = img_pil.crop([0,0,new_width,new_height])  
     open_cv_image = np.array(img_pil)
 
     # Convert RGB to BGR and apply selective search
@@ -179,7 +166,7 @@ def get_background(batch, idx, transform, selective_search, num_classes, img_res
         coords = coords[0:int(len(coords)*.2)] #
         labels_temp = labels_temp[0:int(len(labels_temp)*.2)]
         if len(labels_temp) > 1:
-            indices = random.sample(range(0, len(labels_temp)), k=4)
+            indices = random.sample(range(0, len(labels_temp)), k=16) # 1:8 ration, foreground:background
             coords = [coords[i] for i in indices]
             labels_temp = [labels_temp[i] for i in indices]
 
@@ -189,7 +176,7 @@ def get_background(batch, idx, transform, selective_search, num_classes, img_res
         img_pil = Image.fromarray(image)
         for (x1,y1,x2,y2) in coords:
             crop = img_pil.crop([x1,y1,x2,y2])  
-            new_sample = transform.preprocess(crop)
+            new_sample = transform_norm.preprocess(crop)
             imgs.append(new_sample)
     return imgs, labels
 

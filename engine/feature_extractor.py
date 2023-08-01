@@ -5,11 +5,11 @@ import copy
 import torch.nn as nn
 
 class Timm_head_names:
+    RESNET10 = "resnet10t.c3_in1k"
     RESNET18 = 'resnet18'
     RESNETV2_50 = 'resnetv2_50'
     SWINV2_BASE_WINDOW8_256 = 'swinv2_base_window8_256.ms_in1k'
     RESNETRS_420 = "resnetrs420"
-    RESTNET10 = "resnet10t.c3_in1k"
     ViT = "vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k"
 
 
@@ -21,37 +21,50 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-class MyBackbone(nn.Module):
+class MyFeatureExtractor(nn.Module):
 
-    def __init__(self, model_name, pretrained, num_c, use_fc=False, freeze_all=True):
-        super(MyBackbone,self).__init__()
+    def __init__(self, model_name, pretrained, num_c, use_fc=False, freeze_all=False):
+        super(MyFeatureExtractor,self).__init__()
         self.backbone = timm.create_model(model_name, pretrained=pretrained)
         temp_input_size = 32
+        self.is_transformer = False
+        self.input_size = 0
 
         # different types of head
-        if model_name == Timm_head_names.RESNET18 or \
-            model_name == Timm_head_names.RESNETRS_420 or \
-            model_name == Timm_head_names.RESTNET10:
+        if model_name == Timm_head_names.RESNET10 or \
+            model_name == Timm_head_names.RESNET18 or \
+            model_name == Timm_head_names.RESNETRS_420:
+            # get rid of fc
             self.backbone.fc = Identity()
+
         elif model_name == Timm_head_names.RESNETV2_50:
+            # get rid of head.fc
             self.backbone.head.fc = Identity()
+
         elif model_name == Timm_head_names.SWINV2_BASE_WINDOW8_256:
-            #(norm): LayerNorm((1024,), eps=1e-05, elementwise_affine=True)
-            #(head): Linear(in_features=1024, out_features=1000, bias=True)
+            # get rid of head.fc
             self.backbone.head.fc = Identity()
             self.backbone.head.flatten = Identity()
-            model_name=model_name.split('.')[0]
-            temp_input_size = int(model_name.split('_')[-1])
-        elif model_name == Timm_head_names.ViT:
-            self.backbone.head = Identity()
-            model_name=model_name.split('.')[0]
-            temp_input_size = int(model_name.split('_')[-1])
 
-        # if freeze_all:
-        #     for param in self.backbone.parameters():
-        #         param.requires_grad=False 
+            # get input size - it comes in the file name.
+            model_name=model_name.split('.')[0]
+            temp_input_size = int(model_name.split('_')[-1])
+            self.is_transformer = True
+
+        elif model_name == Timm_head_names.ViT:
+            # get rid of head
+            self.backbone.head = Identity()
+
+            model_name=model_name.split('.')[0]
+            temp_input_size = int(model_name.split('_')[-1])
+            self.is_transformer = True
+
+        if freeze_all:
+            for param in self.backbone.parameters():
+                param.requires_grad=False 
 
         # get the proper size of feature maps
+        self.input_size = temp_input_size
         features_size = self.compute_backbone_output_shape(temp_input_size)
         if len(features_size) != 1:
             raise ValueError(
@@ -62,6 +75,7 @@ class MyBackbone(nn.Module):
         # final fc layer
         self.fc_final = nn.Linear(in_features=features_size[0], out_features=num_c)
         self.use_fc=use_fc
+        self.features_size = features_size[0]
 
     def compute_backbone_output_shape(self, input_size=32):
         """ Compute the dimension of the feature space defined by a feature extractor.

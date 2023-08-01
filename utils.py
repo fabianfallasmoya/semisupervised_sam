@@ -1,9 +1,21 @@
 import argparse
 import psutil
+import os
+import json
+import torchvision
+import torch
+import numpy as np
+from pycocotools.cocoeval import COCOeval
 
 class Constants_AugMethod:
     NO_AUGMENTATION = 'no_augmentation'
     RAND_AUGMENT = 'rand_augmentation'
+
+class Constants_MainMethod:
+    SAM_ALONE = 'sam_alone'
+    SAM_FEWSHOT_SINGLE_CLASS = 'sam_fewshot_single_class'
+    SAM_FEWSHOT_TWO_CLASSES = 'sam_fewshot_two_classes'
+    SAM_OOD = 'sam_ood'
 
 def add_bool_arg(parser, name, default=False, help=''):
     dest_name = name.replace('-', '_')
@@ -37,6 +49,10 @@ def get_parameters():
     parser.add_argument('--loss', type=str, default="mse")  
     parser.add_argument('--optim', type=str, default="sgd")
     parser.add_argument('--val-freq', type=int, default=1)
+    parser.add_argument('--ood-labeled-samples', type=int, default=1)
+    parser.add_argument('--ood-unlabeled-samples', type=int, default=10)
+    parser.add_argument('--ood-thresh', type=float, default=0.8)
+    parser.add_argument('--ood-histogram-bins', type=int, default=15)
 
     # semi
     add_bool_arg(parser, 'use-semi-split', default=False) 
@@ -55,6 +71,7 @@ def get_parameters():
     parser.add_argument('--new-sample-size', type=int, default=224)
     parser.add_argument('--batch-size-labeled', type=int, default=1)
     parser.add_argument('--batch-size-unlabeled', type=int, default=4)
+    parser.add_argument('--method', default='None', type=str)
 
     # add_bool_arg(parser, 'store-val', default=False) 
 
@@ -96,3 +113,92 @@ def throttle_cpu(numa: int = None):
     for i in p.threads():
         temp = psutil.Process(i.id)
         temp.cpu_affinity([i for i in cpu_list])
+
+def eval_sam(coco_gt, image_ids, pred_json_path):
+    # load results in COCO evaluation tool
+    coco_pred = coco_gt.loadRes(pred_json_path)
+
+    # run COCO evaluation
+    print('BBox')
+    coco_eval = COCOeval(coco_gt, coco_pred, 'bbox')
+    coco_eval.params.imgIds = image_ids
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()
+    print()
+
+def save_gt(unlabeled_loader, output_root, method):
+    # get gt
+    img_ids = []
+    categories = []
+    bboxes = []
+    annotations = []
+    id_count = 0
+    for batch in unlabeled_loader:
+        (
+            im, ca, bb
+        ) = get_groundtruth(batch)
+        img_ids += im
+        categories += ca
+        bboxes += bb
+    for index in range(0, len(img_ids)):
+        ann_item = {
+            'id': id_count,
+            'image_id': img_ids[index],
+            'category_id': categories[index],
+            'bbox': bboxes[index],
+            'area': int(bboxes[index][2] * bboxes[index][3]),
+            'segmentation': [],
+            'iscrowd': 0
+        }
+        id_count += 1
+        annotations.append(ann_item)
+
+    # load original json file and save it with just the unlabeled annotations
+    gt_file_path = f"{str(unlabeled_loader.dataset.data_dir.parent)}/annotations/instances_train2017.json"
+    with open(gt_file_path) as gt_file:
+        json_contents = gt_file.read()
+    gt_json = json.loads(json_contents)
+    gt_json['annotations'] = annotations
+
+    # write output
+    gt_file = f"{output_root}/gt.json"
+    if os.path.isfile(gt_file):
+        os.remove(gt_file)
+    json.dump(gt_json, open(gt_file, 'w'), indent=4)
+
+def get_groundtruth(batch):
+        """ From a batch get the gt
+        Params
+        :batch (<tensor, >) -> batch of images
+        """
+        img_ids = []
+        categories = []
+        bboxes = []
+
+        # batch[1] has the metadata
+        for idx in list(range(batch[1]['img_idx'].numel())):
+            img_id = batch[1]['img_orig_id'][idx].item()
+            bbox_indx = (batch[1]['bbox'][idx].sum(axis=1)>0).nonzero(as_tuple=True)[0].cpu()
+            boxes = batch[1]['bbox'][idx][bbox_indx].cpu().tolist()
+            classes = batch[1]['cls'][idx][bbox_indx].cpu().tolist()
+            classes = [int(i) for i in classes]
+
+            img_ids += [img_id] * len(classes) 
+            categories += classes
+            bboxes += boxes
+
+        # translate bbox format to json xywh
+        bboxes_xywh = []
+        for bbox in bboxes:
+            #FOR SOME REASON, THE COORDINATES COME:
+            # [y1,x1,y2,x2] and need to be translated to: [x1,y1,x2,y2]
+            xyxy = np.asarray(bbox)[[1,0,3,2]]
+            xywh = torchvision.ops.box_convert(
+                torch.tensor(xyxy), in_fmt='xyxy', out_fmt='xywh'
+            ).tolist()
+            xywh = [int(i) for i in xywh]
+            bboxes_xywh.append(xywh)
+        
+        return img_ids, categories, bboxes_xywh
+    
