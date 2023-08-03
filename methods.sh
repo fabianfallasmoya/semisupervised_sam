@@ -1,4 +1,4 @@
-GPU_NUM=3
+GPU_NUM=2
 export CUDA_VISIBLE_DEVICES=${GPU_NUM}
 DATASET_NAME="PINEAPPLES2_5mts_nosplits"
 ROOT="../../../share/semi_supervised/pineapples/${DATASET_NAME}" 

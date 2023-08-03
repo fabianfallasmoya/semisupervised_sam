@@ -114,18 +114,18 @@ def throttle_cpu(numa: int = None):
         temp = psutil.Process(i.id)
         temp.cpu_affinity([i for i in cpu_list])
 
-def eval_sam(coco_gt, image_ids, pred_json_path):
-    # load results in COCO evaluation tool
-    coco_pred = coco_gt.loadRes(pred_json_path)
+# def eval_sam(coco_gt, image_ids, pred_json_path):
+#     # load results in COCO evaluation tool
+#     coco_pred = coco_gt.loadRes(pred_json_path)
 
-    # run COCO evaluation
-    print('BBox')
-    coco_eval = COCOeval(coco_gt, coco_pred, 'bbox')
-    coco_eval.params.imgIds = image_ids
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
-    print()
+#     # run COCO evaluation
+#     print('BBox')
+#     coco_eval = COCOeval(coco_gt, coco_pred, 'bbox')
+#     coco_eval.params.imgIds = image_ids
+#     coco_eval.evaluate()
+#     coco_eval.accumulate()
+#     coco_eval.summarize()
+#     print()
 
 def save_gt(unlabeled_loader, output_root, method):
     # get gt

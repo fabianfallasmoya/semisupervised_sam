@@ -39,7 +39,7 @@
                 "--sam-model","h",
                 "--ood-thresh", "0.8",
                 "--ood-histogram-bins", "15",
-                "--method", "sam_ood" //sam_alone sam_fewshot_single_class sam_fewshot_two_classes sam_ood
+                "--method", "sam_alone" //sam_alone sam_fewshot_single_class sam_fewshot_two_classes sam_ood
                 ]
         }
     ]

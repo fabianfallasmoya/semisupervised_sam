@@ -5,7 +5,6 @@ import torch
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 from engine.feature_extractor import MyFeatureExtractor
 from engine.prototypical_networks import PrototypicalNetworks, PrototypicalNetworks_SingleClass
-from utils import Constants_AugMethod, Constants_MainMethod
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
@@ -38,11 +37,10 @@ except ImportError:
         convert_sync_batchnorm = torch.nn.SyncBatchNorm.convert_sync_batchnorm
 from timm.data.transforms_factory import create_transform 
 from data import create_dataset_ood
-from utils import get_parameters, seed_everything, throttle_cpu, save_gt
+from utils import *
 from data.fewshot_data import get_batch_prototypes
 from engine import SAM
 from pycocotools.coco import COCO
-from eval import *
 from data import transforms_toNumpy, create_loader
 from ood_filter import OOD_filter_neg_likelihood
 #------------------------------------------------------------------------------------------------
