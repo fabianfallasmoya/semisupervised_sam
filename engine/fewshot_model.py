@@ -104,19 +104,3 @@ class FewShot(nn.Module):
             nn.functional.normalize(samples, dim=1)
             @ nn.functional.normalize(self.prototypes, dim=1).T
         )
-
-    def store_support_set_data(
-        self,
-        support_images: Tensor,
-        support_labels: Tensor,
-    ):
-        """
-        Extract support features, compute prototypes,
-            and store support labels, features, and prototypes
-        Args:
-            support_images: images of the support set
-            support_labels: labels of support set images
-        """
-        self.support_labels = support_labels
-        self.support_features = self.backbone(support_images)
-        self.prototypes = compute_prototypes(self.support_features, support_labels)

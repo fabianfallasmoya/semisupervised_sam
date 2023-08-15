@@ -26,6 +26,7 @@ class MyFeatureExtractor(nn.Module):
     def __init__(self, model_name, pretrained, num_c, use_fc=False, freeze_all=False):
         super(MyFeatureExtractor,self).__init__()
         self.backbone = timm.create_model(model_name, pretrained=pretrained)
+        self.backbone.eval()
         temp_input_size = 32
         self.is_transformer = False
         self.input_size = 0

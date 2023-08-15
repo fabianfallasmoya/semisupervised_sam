@@ -325,7 +325,7 @@ def transforms_toNumpy():
     return image_tf
 
 
-class Transform_Normalization():
+class Transform_To_Models():
     """
     Class with transformation methods
     """
@@ -341,7 +341,7 @@ class Transform_Normalization():
         self.force_resize = force_resize
         self.keep_aspect_ratio = keep_aspect_ratio
 
-    def preprocess(self, img_pil):
+    def preprocess_timm_embed(self, img_pil):
         """ normalize tensor
         """
         # resize to min size IF NECESSARY
@@ -364,6 +364,27 @@ class Transform_Normalization():
         x = x.permute(-1, 0, 1)
         x = (x - self.mean[:, None, None]) / self.std[:, None, None]
 
+        return x
+
+    def preprocess_sam_embed(self, img_pil):
+        """ normalize tensor
+        """
+        # resize to min size IF NECESSARY
+        w,h = img_pil.size
+        h_new = w_new = 0.
+        if (w < self.size or h < self.size) or self.force_resize:
+            if w < h:
+                h_new = (h * self.size) // w
+                w_new = self.size
+            else:
+                w_new = (w * self.size) // h
+                h_new = self.size
+            if self.keep_aspect_ratio:
+                img_pil = img_pil.resize((w_new,h_new))
+            else:
+                img_pil = img_pil.resize((self.size,self.size))
+        
+        x = np.array(img_pil)
         return x
 
         # # resize 

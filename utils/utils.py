@@ -6,16 +6,19 @@ import torchvision
 import torch
 import numpy as np
 from pycocotools.cocoeval import COCOeval
+from data import create_dataset_ood
+from data import transforms_toNumpy, create_loader
 
 class Constants_AugMethod:
     NO_AUGMENTATION = 'no_augmentation'
     RAND_AUGMENT = 'rand_augmentation'
 
 class Constants_MainMethod:
-    SAM_ALONE = 'sam_alone'
-    SAM_FEWSHOT_SINGLE_CLASS = 'sam_fewshot_single_class'
-    SAM_FEWSHOT_TWO_CLASSES = 'sam_fewshot_two_classes'
-    SAM_OOD = 'sam_ood'
+    ALONE = 'samAlone'
+    FEWSHOT_1_CLASS = 'fewshot1'
+    FEWSHOT_2_CLASSES = 'fewshot2'
+    FEWSHOT_OOD = 'fewshotOOD'
+    SELECTIVE_SEARCH = 'ss'
 
 def add_bool_arg(parser, name, default=False, help=''):
     dest_name = name.replace('-', '_')
@@ -45,6 +48,8 @@ def get_parameters():
     parser.add_argument('--root',type=str, default='.')
     parser.add_argument('--num-classes', type=int, default=1) 
     add_bool_arg(parser, 'load-pretrained', default=False) 
+    # add_bool_arg(parser, 'use-sam-embeddings', default=False) 
+    parser.add_argument('--use-sam-embeddings', type=int, default=0)
     parser.add_argument('--timm-model', type=str, default="")  
     parser.add_argument('--loss', type=str, default="mse")  
     parser.add_argument('--optim', type=str, default="sgd")
@@ -114,26 +119,22 @@ def throttle_cpu(numa: int = None):
         temp = psutil.Process(i.id)
         temp.cpu_affinity([i for i in cpu_list])
 
-# def eval_sam(coco_gt, image_ids, pred_json_path):
-#     # load results in COCO evaluation tool
-#     coco_pred = coco_gt.loadRes(pred_json_path)
+def save_gt(unlabeled_loader, output_root):
+    """ Save new json file with gt.
+    Params
+    :unlabeled_loader (loader) -> to get all unlabeled imgs.
+    :output_root (str) -> path to save the file.
 
-#     # run COCO evaluation
-#     print('BBox')
-#     coco_eval = COCOeval(coco_gt, coco_pred, 'bbox')
-#     coco_eval.params.imgIds = image_ids
-#     coco_eval.evaluate()
-#     coco_eval.accumulate()
-#     coco_eval.summarize()
-#     print()
-
-def save_gt(unlabeled_loader, output_root, method):
+    Return
+    :None
+    """
     # get gt
     img_ids = []
     categories = []
     bboxes = []
     annotations = []
     id_count = 0
+    # get all information from the batch 
     for batch in unlabeled_loader:
         (
             im, ca, bb
@@ -141,6 +142,8 @@ def save_gt(unlabeled_loader, output_root, method):
         img_ids += im
         categories += ca
         bboxes += bb
+
+    # create the new annotations
     for index in range(0, len(img_ids)):
         ann_item = {
             'id': id_count,
@@ -160,6 +163,18 @@ def save_gt(unlabeled_loader, output_root, method):
         json_contents = gt_file.read()
     gt_json = json.loads(json_contents)
     gt_json['annotations'] = annotations
+
+    # keep only the imgs I need
+    #--------------------------
+    img_ids_from_anns = [i['image_id'] for i in gt_json['annotations']]
+    img_ids_from_anns = list(set(img_ids_from_anns)) # unique elements
+    images_res = []
+    for img_node in gt_json['images']:
+        if img_node['id'] in img_ids_from_anns:
+            images_res.append(img_node)
+    
+    gt_json['images'] = images_res
+    #--------------------------
 
     # write output
     gt_file = f"{output_root}/gt.json"
@@ -201,4 +216,41 @@ def get_groundtruth(batch):
             bboxes_xywh.append(xywh)
         
         return img_ids, categories, bboxes_xywh
+
+def create_datasets_and_loaders(args):
+    """ Setup datasets, transforms, loaders, evaluator.
+    Params
+    :args -> Model specific configuration dict / struct
+
+    Returns
+    :loaders
+    """
+    datasets = create_dataset_ood(
+        args.dataset, args.root, 
+        labeled_samples=args.ood_labeled_samples,
+        unlabeled_samples=args.ood_unlabeled_samples
+    )
+    dataset_train_labeled = datasets[0]
+    dataset_train_unlabeled = datasets[1]
+
+    # create data loaders
+    trans_numpy = transforms_toNumpy()
+    normalize_imgs = False
+    loader_labeled = create_loader(
+        dataset_train_labeled,
+        img_resolution=args.img_resolution,
+        batch_size=args.batch_size_labeled,
+        is_training=False,
+        transform_fn = trans_numpy,
+        normalize_img=normalize_imgs
+    )
+    loader_unlabeled = create_loader(
+        dataset_train_unlabeled,
+        img_resolution=args.img_resolution,
+        batch_size=args.batch_size_unlabeled,
+        is_training=False,
+        transform_fn = trans_numpy,
+        normalize_img=normalize_imgs
+    )
+    return loader_labeled, loader_unlabeled
     

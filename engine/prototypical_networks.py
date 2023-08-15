@@ -4,10 +4,13 @@ at https://github.com/jakesnell/prototypical-networks
 """
 from typing import List
 import torch
+import numpy as np
 from torch import Tensor
 from .fewshot_model import FewShot
 from .fewshot_utils import compute_prototypes, compute_prototypes_singleclass
-import statistics
+# import statistics
+import scipy
+from sklearn.model_selection import train_test_split
 
 
 class PrototypicalNetworks(FewShot):
@@ -21,92 +24,7 @@ class PrototypicalNetworks(FewShot):
     classification scores for query images based on their euclidean distance to the prototypes.
     """
 
-    # def __init__(self, *args, **kwargs):
-    #     """
-    #     Raises:
-    #         ValueError: if the backbone is not a feature extractor,
-    #         i.e. if its output for a given image is not a 1-dim tensor.
-    #     """
-    #     super().__init__(*args, **kwargs)
-
-    #     if len(self.backbone_output_shape) != 1:
-    #         raise ValueError(
-    #             "Illegal backbone for Prototypical Networks. "
-    #             "Expected output for an image is a 1-dim tensor."
-    #         )
-
-    def process_support_set(
-        self,
-        support_images: List,
-        support_labels: List,
-    ):
-        """
-        Overrides process_support_set of FewShotClassifier.
-        Extract feature vectors from the support set and store class prototypes.
-
-        Args:
-            support_images: images of the support set
-            support_labels: labels of support set images
-        """
-        # support_features = self.backbone.forward(support_images)
-        support_features = []
-        self.backbone.eval()
-        # get feature maps from the images
-        with torch.no_grad():
-            for img in support_images:
-                t_temp = self.backbone.forward(img.unsqueeze(dim=0).to('cuda'))
-                support_features.append(t_temp.squeeze().cpu())
-        # self.backbone.train()
-        
-        # get prototypes and save them into cuda memory
-        support_features = torch.stack(support_features)
-        support_labels = torch.Tensor(support_labels)
-        prototypes = compute_prototypes(support_features, support_labels)
-        self.prototypes = prototypes.to('cuda')
-
-    def forward(
-        self,
-        query_images: Tensor,
-    ) -> Tensor:
-        """
-        Overrides forward method of FewShotClassifier.
-        Predict query labels based on their distance to class prototypes in the feature space.
-        Classification scores are the negative of euclidean distances.
-
-        Args:
-            query_images: images of the query set
-        Returns:
-            a prediction of classification scores for query images
-        """
-        # Extract the features of support and query images
-        z_query = self.backbone.forward(query_images)
-
-        # Compute the euclidean distance from queries to prototypes
-        dists = torch.cdist(z_query, self.prototypes)
-
-        # Use it to compute classification scores
-        # FEW SHOT ALWAYS LOOK FOR THE MAX, AND SINCE DISTANCES ARE ALWAYS 
-        # POSITIVE, WE NEGATE THE RESULTS IN ORDER TO LOOK FOR THE MAX
-        scores = -dists 
-
-        return self.softmax_if_specified(scores)
-
-    @staticmethod
-    def is_transductive() -> bool:
-        return False
-
-class PrototypicalNetworks_SingleClass(FewShot):
-    """
-    Jake Snell, Kevin Swersky, and Richard S. Zemel.
-    "Prototypical networks for few-shot learning." (2017)
-    https://arxiv.org/abs/1703.05175
-
-    Prototypical networks extract feature vectors for both support and query images. Then it
-    computes the mean of support features for each class (called prototypes), and predict
-    classification scores for query images based on their euclidean distance to the prototypes.
-    """
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, is_single_class, use_sam_embeddings, *args, **kwargs):
         """
         Raises:
             ValueError: if the backbone is not a feature extractor,
@@ -115,79 +33,127 @@ class PrototypicalNetworks_SingleClass(FewShot):
         super().__init__(*args, **kwargs)
         self.mean = None
         self.std = None
+        self.num_samples = None
+        self.is_single_class = is_single_class
+        self.use_sam_embeddings = use_sam_embeddings
 
-    #     if len(self.backbone_output_shape) != 1:
-    #         raise ValueError(
-    #             "Illegal backbone for Prototypical Networks. "
-    #             "Expected output for an image is a 1-dim tensor."
-    #         )
+    def get_embeddings_timm(self, img):
+        """
+        Returns the embeddings from the backbone which is a timm model.
+        """
+        with torch.no_grad():
+            x = self.backbone.forward(img.unsqueeze(dim=0).to('cuda'))
+        return x
+    
+    def get_embeddings_sam(self, img):
+        """
+        Returns the embeddings from the backbone which SAM.
+        """
+        with torch.no_grad():
+            x = self.backbone.get_embeddings(img)
+        return x
 
     def process_support_set(
         self,
-        support_images: List
+        support_images: List,
+        support_labels: List = None,
     ):
         """
         Overrides process_support_set of FewShotClassifier.
         Extract feature vectors from the support set and store class prototypes.
 
-        Args:
-            support_images: images of the support set
-            support_labels: labels of support set images
+        Params
+        :support_images (tensor) -> images of the support set
+        :support_labels (tensor) <Optional> -> labels of support set images
         """
         support_features = []
-        self.backbone.eval()
+        self.num_samples = len(support_images)
+
+        #---------------------------------------
+        # split the ids
+        y_dumpy = np.zeros(len(support_images))
+        imgs_1, imgs_2, _, _ = train_test_split(
+            support_images, y_dumpy, 
+            train_size = 0.6,
+            shuffle=True # shuffle the data before splitting
+        )
+        #---------------------------------------
+        
         # get feature maps from the images
-        with torch.no_grad():
-            for img in support_images:
-                t_temp = self.backbone.forward(img.unsqueeze(dim=0).to('cuda'))
-                support_features.append(t_temp.squeeze().cpu())
-        self.backbone.train()
+        for img in imgs_1:
+            if self.use_sam_embeddings:
+                t_temp = self.get_embeddings_sam(img)
+            else:
+                t_temp = self.get_embeddings_timm(img)
+            support_features.append(t_temp.squeeze().cpu())
         
         # get prototypes and save them into cuda memory
         support_features = torch.stack(support_features)
-        prototypes = compute_prototypes_singleclass(support_features)
-        self.prototypes = prototypes.unsqueeze(dim=0).to('cuda')
+        if self.is_single_class:
+            prototypes = compute_prototypes_singleclass(support_features)
+            prototypes = prototypes.unsqueeze(dim=0) # 2D tensor
+        else:
+            support_labels = torch.Tensor(support_labels)
+            prototypes = compute_prototypes(support_features, support_labels)
+        self.prototypes = prototypes.to('cuda')
 
-    def forward_groundtruth(
+        #---------------------------------------
+        if self.is_single_class:
+            self._calculate_statistics(imgs_2)
+        #---------------------------------------
+
+    def _calculate_statistics(
         self,
-        query_images: Tensor,
+        imgs: List,
     ) -> Tensor:
-        scores = []
-        with torch.no_grad():
-            for img in query_images:
-                score = self.forward(img.unsqueeze(dim=0).to('cuda'))
-                scores.append(score.cpu().item())
+        """     
+        Get metrics from the embeddings.
 
-        self.mean = statistics.mean(scores)
-        self.std = statistics.stdev(scores)
+        Params
+        :imgs (tensor) -> embedding to calculate metrics.
+        """
+        assert self.is_single_class, "This method can be used just in single class"
+        scores = []
+        for img in imgs:
+            score = self.forward(img)
+            scores.append(score.cpu().item())
+        self.mean = scipy.mean(scores)
+        self.std = scipy.std(scores)
+
 
     def forward(
         self,
-        query_images: Tensor,
+        query_image,
     ) -> Tensor:
         """
         Overrides forward method of FewShotClassifier.
         Predict query labels based on their distance to class prototypes in the feature space.
         Classification scores are the negative of euclidean distances.
 
-        Args:
-            query_images: images of the query set
-        Returns:
-            a prediction of classification scores for query images
+        Params
+        :query_image (tensor) -> img to be processed.
+        Return
+        :a prediction of classification scores for query images
         """
-        # Extract the features of support and query images
-        z_query = self.backbone.forward(query_images)
+        if self.use_sam_embeddings:
+            z_query = self.get_embeddings_sam(query_image)
+        else:
+            z_query = self.get_embeddings_timm(query_image)
 
         # Compute the euclidean distance from queries to prototypes
-        dists = torch.cdist(z_query, self.prototypes)
+        dist = torch.cdist(z_query, self.prototypes)
 
         # Use it to compute classification scores
         # FEW SHOT ALWAYS LOOK FOR THE MAX, AND SINCE DISTANCES ARE ALWAYS 
         # POSITIVE, WE NEGATE THE RESULTS IN ORDER TO LOOK FOR THE MAX
-        scores = -dists 
+        if not self.is_single_class:
+            dist = -dist 
 
-        return self.softmax_if_specified(scores)
+
+        return self.softmax_if_specified(dist)
 
     @staticmethod
     def is_transductive() -> bool:
         return False
+
+

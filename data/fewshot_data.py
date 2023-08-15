@@ -1,7 +1,7 @@
 from random import sample
 import torch
 from PIL import Image
-from .transforms import Transform_Normalization
+from .transforms import Transform_To_Models
 import numpy as np
 import cv2
 from metrics import intersection_over_union, intersection
@@ -11,7 +11,8 @@ def get_batch_prototypes(
     dataloader_fewshot, 
     num_classes:float=None, 
     get_background_samples:bool=True,
-    trans_norm=None):
+    trans_norm=None,
+    use_sam_embeddings=False):
     """ Get the images that will be used to calculate the prototypes.
 
     Params:
@@ -32,9 +33,15 @@ def get_batch_prototypes(
         for idx in list(range(batch[1]['img_idx'].numel())):
             # get background samples
             if get_background_samples:
-                imgs_b, labels_b = get_background(batch, idx, trans_norm, ss, num_classes)
+                imgs_b, labels_b = get_background(
+                    batch, idx, trans_norm, ss, num_classes,
+                    use_sam_embeddings=use_sam_embeddings
+                )
             # get foreground samples
-            imgs_f, labels_f = get_foreground(batch, idx, trans_norm)
+            imgs_f, labels_f = get_foreground(
+                batch, idx, trans_norm,
+                use_sam_embeddings=use_sam_embeddings
+            )
 
             # accumulate
             if get_background_samples:
@@ -46,7 +53,7 @@ def get_batch_prototypes(
             count_imgs += 1
     return imgs, labels
 
-def get_foreground(batch, idx, transform_norm):
+def get_foreground(batch, idx, transform_norm, use_sam_embeddings=False):
     """ From a batch and its index get samples """
     imgs = []
     labels = []
@@ -69,13 +76,18 @@ def get_foreground(batch, idx, transform_norm):
         bbox = bbox.numpy()
 
         # get img
-        crop = img_pil.crop(bbox)  
-        new_sample = transform_norm.preprocess(crop)
+        crop = img_pil.crop(bbox)
+        if use_sam_embeddings:
+            new_sample = transform_norm.preprocess_sam_embed(crop)
+        else:
+            new_sample = transform_norm.preprocess_timm_embed(crop)
         labels.append(classes[idx_bbox].item())
         imgs.append(new_sample)
     return imgs, labels
 
-def get_background(batch, idx, transform_norm, selective_search, num_classes):
+def get_background(
+    batch, idx, transform_norm, selective_search, 
+    num_classes, use_sam_embeddings=False):
     """ From a batch and its index get samples """
     imgs = []
     labels = []
@@ -94,8 +106,6 @@ def get_background(batch, idx, transform_norm, selective_search, num_classes):
     proposals = selective_search.process()
 
     # 2. CALCULATE ious (permutation) ground truth vs proposals
-    #  from numpy to list
-    #proposals = [list(i) for i in list(proposals)]
     # from [x,y,w,h] to [x1,y1,x2,y2]
     proposals[:,[2]] = proposals[:,[0]] + proposals[:,[2]]
     proposals[:,[3]] = proposals[:,[1]] + proposals[:,[3]]
@@ -176,7 +186,10 @@ def get_background(batch, idx, transform_norm, selective_search, num_classes):
         img_pil = Image.fromarray(image)
         for (x1,y1,x2,y2) in coords:
             crop = img_pil.crop([x1,y1,x2,y2])  
-            new_sample = transform_norm.preprocess(crop)
+            if use_sam_embeddings:
+                new_sample = transform_norm.preprocess_sam_embed(crop)
+            else:
+                new_sample = transform_norm.preprocess_timm_embed(crop)
             imgs.append(new_sample)
     return imgs, labels
 

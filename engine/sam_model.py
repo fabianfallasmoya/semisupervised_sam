@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torchvision
 from PIL import Image
+from segment_anything.predictor import SamPredictor
 
 
 class SAM:
@@ -19,6 +20,15 @@ class SAM:
             RuntimeError("No sam config found")
         self.model = sam_model_registry[self.model_type](checkpoint=self.checkpoint).to('cuda')
         self.mask_generator = None
+
+        # get the size of the embeddings
+        new_pil = Image.new(mode="RGB", size=(200,200))
+        predictor = SamPredictor(self.model) 
+
+        predictor.set_image(np.array(new_pil))
+        # features shape: ([1, 256, 64, 64]), we keep 256
+        self.features_size = predictor.features.shape[1]
+        predictor.reset_image()
 
     def load_simple_mask(self):
         #There are several tunable parameters in automatic mask generation that control 
@@ -44,7 +54,9 @@ class SAM:
         )
         self.mask_generator = mask_generator_
 
-    def get_unlabeled_sam(self, batch, idx, transform):
+    def get_unlabeled_samples(self, 
+            batch, idx, transform, use_sam_embeddings
+        ):
         """ From a batch and its index get samples 
         Params
         :batch (<tensor, >)
@@ -67,13 +79,35 @@ class SAM:
             )
             # get img
             crop = img_pil.crop(np.array(xyxy))  
-            sample = transform.preprocess(crop)
+            if use_sam_embeddings:
+                sample = transform.preprocess_sam_embed(crop)
+            else:
+                sample = transform.preprocess_timm_embed(crop)
 
             # accumulate
             imgs.append(sample)
             box_coords.append(xywh)
             scores.append(float(ann['predicted_iou']))
         return imgs, box_coords, scores
+
+    def get_embeddings(self, img):
+        """
+        Receive an image and return the feature embeddings.
+
+        Params
+        :img (numpy.array) -> image.
+        Return
+        :torch of the embeddings from SAM.
+        """
+        self.mask_generator.predictor.set_image(img)
+        embeddings = self.mask_generator.predictor.features
+
+        with torch.no_grad():
+            _pool = torch.nn.AdaptiveAvgPool2d((1, 1))
+            avg_pooled = _pool(embeddings).view(embeddings.size(0), -1)
+        self.mask_generator.predictor.reset_image()
+        return avg_pooled
+
 
 
         
