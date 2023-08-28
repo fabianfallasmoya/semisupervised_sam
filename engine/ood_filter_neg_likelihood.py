@@ -1,6 +1,7 @@
 import os
 import json
 import torch
+import scipy
 # from fastai.vision import *
 # from fastai.callbacks import CSVLogger
 from numbers import Integral
@@ -56,6 +57,8 @@ class OOD_filter_neg_likelihood:
         self.trans_norm = trans_norm
         self.use_sam_embeddings = use_sam_embeddings
         self.power_transf = PowerTransformer(method='yeo-johnson', standardize=True)
+        # self.mean = 0
+        # self.std = 0
 
     def run_filter(self, 
         labeled_loader, 
@@ -99,7 +102,7 @@ class OOD_filter_neg_likelihood:
         y_dumpy = np.zeros(len(feature_maps_list))
         imgs_1, imgs_2, _, _ = train_test_split(
             feature_maps_list, y_dumpy, 
-            train_size = 0.5,
+            train_size = 0.6,
             shuffle=True # shuffle the data before splitting
         )
         #----------------------------------------------------------------
@@ -110,7 +113,7 @@ class OOD_filter_neg_likelihood:
         (
             histograms_labeled,    # e.g. 512 x 15
             buckets_labeled        # e.g. 512 x 15
-        ) = self.calculate_hist_dataset(imgs_1, ood_hist_bins)
+        ) = self.calculate_hist_dataset(imgs_1, ood_hist_bins) #
 
 
         # get likelihoods
@@ -123,6 +126,8 @@ class OOD_filter_neg_likelihood:
         # transfor the distribution to a gaussian one
         likelihoods_data = likelihoods.reshape((len(likelihoods),1))
         _ = self.power_transf.fit_transform(likelihoods_data)
+        # self.mean = scipy.mean(likelihoods.numpy())
+        # self.std = scipy.std(likelihoods.numpy())
         #----------------------------------------------------------------
 
         # go through each batch unlabeled
@@ -202,22 +207,16 @@ class OOD_filter_neg_likelihood:
         scores = np.array(scores).reshape((len(scores),1))
         scores_t = self.power_transf.transform(scores)
 
-        # store std for 1 and for 2
+        # store std for 1 and for 2 and 3
         for idx_ in range(1,4):
             idx_float = float(idx_)
-            # accumulate results
-            num_selected = 0
-            # final mask
-            selected_samples = [0] * len(scores_t)
-            for i in range(0, len(scores_t)):
-                if(scores_t[i] <= idx_float):
-                    num_selected += 1
-                    selected_samples[i] =  1
+            # limit = self.mean + (idx_float * self.std)
+            limit = idx_float
 
-            # Save boxes that are in the mask
+            # accumulate results
             results = []
-            for index,val in enumerate(selected_samples):
-                if val == 1:
+            for index, score in enumerate(scores_t):
+                if(score.item() <= limit):
                     image_result = {
                         'image_id': imgs_ids[index],
                         'category_id': 1, # fix this

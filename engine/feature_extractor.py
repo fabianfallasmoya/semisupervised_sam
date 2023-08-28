@@ -11,6 +11,8 @@ class Timm_head_names:
     SWINV2_BASE_WINDOW8_256 = 'swinv2_base_window8_256.ms_in1k'
     RESNETRS_420 = "resnetrs420"
     ViT = "vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k"
+    COATNET = "coatnet_3_rw_224.sw_in12k"
+    VIT_GIGANTIC = "vit_gigantic_patch14_clip_224.laion2b"
 
 
 class Identity(nn.Module):
@@ -52,9 +54,18 @@ class MyFeatureExtractor(nn.Module):
             temp_input_size = int(model_name.split('_')[-1])
             self.is_transformer = True
 
-        elif model_name == Timm_head_names.ViT:
+        elif model_name == Timm_head_names.ViT or \
+            model_name == Timm_head_names.VIT_GIGANTIC:
             # get rid of head
             self.backbone.head = Identity()
+
+            model_name=model_name.split('.')[0]
+            temp_input_size = int(model_name.split('_')[-1])
+            self.is_transformer = True
+
+        elif model_name == Timm_head_names.COATNET:
+            # get rid of head
+            self.backbone.head.fc = Identity()
 
             model_name=model_name.split('.')[0]
             temp_input_size = int(model_name.split('_')[-1])

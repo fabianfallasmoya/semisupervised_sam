@@ -16,7 +16,7 @@
                 "--root", "../../../share/semi_supervised/pineapples/PINEAPPLES2_5mts_nosplits", 
                 "--num-classes","1",
                 "--load-pretrained",
-                "--timm-model", "resnet10t.c3_in1k",
+                "--timm-model", "coatnet_3_rw_224.sw_in12k", // swinv2_base_window8_256.ms_in1k
                 "--loss","mae",
                 "--optim", "sgd",
                 "--val-freq", "1",
@@ -39,7 +39,7 @@
                 "--sam-model","h",
                 "--ood-thresh", "0.8",
                 "--ood-histogram-bins", "15", //
-                "--use-sam-embeddings", "1",
+                "--use-sam-embeddings", "0",
                 "--method", "fewshot1" //ss samAlone fewshot1 fewshot2 fewshotOOD 
                 ]
         }

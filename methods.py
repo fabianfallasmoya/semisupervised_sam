@@ -161,7 +161,7 @@ def few_shot(args, is_single_class=None, output_root=None):
     if is_single_class:
         save_inferences_singleclass(
             fs_model, unlabeled_loader, sam, 
-            res_data, trans_norm,
+            output_root, trans_norm,
             args.use_sam_embeddings
         )
     else:
@@ -172,10 +172,24 @@ def few_shot(args, is_single_class=None, output_root=None):
         )
 
     # STEP 6: evaluate model
-    eval_sam(
-        coco_gt, image_ids, res_data, 
-        output_root, method=args.method
-    )
+    if is_single_class:
+        for idx_ in range(1,4):
+            MAX_IMAGES = 100000
+            gt_eval_path = f"{output_root}/gt.json"
+            coco_gt = COCO(gt_eval_path)
+            image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+            res_data = f"{output_root}/bbox_results_std{idx_}.json"
+
+            eval_sam(
+                coco_gt, image_ids, res_data, 
+                output_root, method=args.method,
+                number=idx_
+            )
+    else:
+        eval_sam(
+            coco_gt, image_ids, res_data, 
+            output_root, method=args.method
+        )
 
 def ood_filter(args, output_root):
     """ Use sam and fewshot (maximum likelihood) to classify masks.

@@ -12,7 +12,6 @@ from .fewshot_utils import compute_prototypes, compute_prototypes_singleclass
 import scipy
 from sklearn.model_selection import train_test_split
 
-
 class PrototypicalNetworks(FewShot):
     """
     Jake Snell, Kevin Swersky, and Richard S. Zemel.
@@ -71,9 +70,12 @@ class PrototypicalNetworks(FewShot):
 
         #---------------------------------------
         # split the ids
-        y_dumpy = np.zeros(len(support_images))
-        imgs_1, imgs_2, _, _ = train_test_split(
-            support_images, y_dumpy, 
+        if support_labels is None:
+            y_labels = np.zeros(len(support_images))
+        else:
+            y_labels = np.zeros(len(support_images))
+        imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
+            support_images, y_labels, 
             train_size = 0.6,
             shuffle=True # shuffle the data before splitting
         )
@@ -93,7 +95,7 @@ class PrototypicalNetworks(FewShot):
             prototypes = compute_prototypes_singleclass(support_features)
             prototypes = prototypes.unsqueeze(dim=0) # 2D tensor
         else:
-            support_labels = torch.Tensor(support_labels)
+            support_labels = torch.Tensor(lbl_1)
             prototypes = compute_prototypes(support_features, support_labels)
         self.prototypes = prototypes.to('cuda')
 
