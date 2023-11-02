@@ -8,12 +8,15 @@ class Timm_head_names:
     RESNET10 = "resnet10t.c3_in1k"
     RESNET18 = 'resnet18'
     RESNETV2_50 = 'resnetv2_50'
-    SWINV2_BASE_WINDOW8_256 = 'swinv2_base_window8_256.ms_in1k'
+    EFFICIENT = "tf_efficientnet_l2.ns_jft_in1k_475"
     RESNETRS_420 = "resnetrs420"
+
+    SWINV2_BASE_WINDOW8_256 = 'swinv2_base_window8_256.ms_in1k'
+    SWIN_LARGE = "swin_large_patch4_window12_384.ms_in22k_ft_in1k"
     ViT = "vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k"
     COATNET = "coatnet_3_rw_224.sw_in12k"
     VIT_GIGANTIC = "vit_gigantic_patch14_clip_224.laion2b"
-
+    MAXVIT = "maxvit_xlarge_tf_512.in21k_ft_in1k"
 
 class Identity(nn.Module):
     """ Identity to remove one layer """
@@ -43,8 +46,11 @@ class MyFeatureExtractor(nn.Module):
         elif model_name == Timm_head_names.RESNETV2_50:
             # get rid of head.fc
             self.backbone.head.fc = Identity()
+        elif model_name == Timm_head_names.EFFICIENT:
+            self.backbone.classifier = Identity()
 
-        elif model_name == Timm_head_names.SWINV2_BASE_WINDOW8_256:
+        elif model_name == Timm_head_names.SWINV2_BASE_WINDOW8_256 or \
+            model_name == Timm_head_names.SWIN_LARGE:
             # get rid of head.fc
             self.backbone.head.fc = Identity()
             self.backbone.head.flatten = Identity()
@@ -63,7 +69,8 @@ class MyFeatureExtractor(nn.Module):
             temp_input_size = int(model_name.split('_')[-1])
             self.is_transformer = True
 
-        elif model_name == Timm_head_names.COATNET:
+        elif model_name == Timm_head_names.COATNET or \
+             model_name == Timm_head_names.MAXVIT:
             # get rid of head
             self.backbone.head.fc = Identity()
 

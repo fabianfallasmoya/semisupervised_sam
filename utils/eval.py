@@ -81,31 +81,32 @@ def save_inferences_singleclass(
             imgs_scores += scores
 
     # store std for 1 and for 2 and 3
-    for idx_1 in range(1,4):
-        idx_float = float(idx_1)
-        lower = fs_model.mean - (idx_float*fs_model.std)
-        upper = fs_model.mean + (idx_float*fs_model.std)
+    # for idx_1 in range(1,4):
+    idx_1 = 2
+    idx_float = float(idx_1)
+    lower = fs_model.mean - (idx_float*fs_model.std)
+    upper = fs_model.mean + (idx_float*fs_model.std)
 
-        results = []
-        for idx_,sample in enumerate(unlabeled_imgs):
-            distance = fs_model(sample).cpu().item()
+    results = []
+    for idx_,sample in enumerate(unlabeled_imgs):
+        distance = fs_model(sample).cpu().item()
 
-            # distance is inside the first std from the mean
-            if  distance <= upper and distance >= lower:
-                image_result = {
-                    'image_id': imgs_ids[idx_],
-                    'category_id': 1,
-                    'score': imgs_scores[idx_],
-                    'bbox': imgs_box_coords[idx_],
-                }
-                results.append(image_result)
-            
-        if len(results) > 0:
-            # write output
-            f_ = f"{filepath}/bbox_results_std{idx_}.json"
-            if os.path.exists(f_):
-                os.remove(f_)
-            json.dump(results, open(f_, 'w'), indent=4)
+        # distance is inside the first std from the mean
+        if  distance <= upper and distance >= lower:
+            image_result = {
+                'image_id': imgs_ids[idx_],
+                'category_id': 1,
+                'score': imgs_scores[idx_],
+                'bbox': imgs_box_coords[idx_],
+            }
+            results.append(image_result)
+        
+    if len(results) > 0:
+        # write output
+        f_ = f"{filepath}/bbox_results_std{idx_1}.json"
+        if os.path.exists(f_):
+            os.remove(f_)
+        json.dump(results, open(f_, 'w'), indent=4)
 
 def save_inferences_twoclasses(
     fs_model, unlabeled_loader, sam_model, 

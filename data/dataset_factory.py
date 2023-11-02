@@ -195,7 +195,13 @@ def create_dataset_ood(name, root, splits=('train'),
                 with open(ann_file, 'r') as f:
                     new_labeled = json.load(f)
                 with open(ann_file, 'r') as f2:
-                    new_unlabeled = json.load(f2)
+                    new_test = json.load(f2)
+                with open(ann_file, 'r') as f3:
+                    new_full_labeled = json.load(f3)
+                with open(ann_file, 'r') as f4:
+                    new_unlabeled = json.load(f4)
+
+
                 # get all image ids 
                 ids = [item['id'] for item in new_labeled['images']]
                 total_samples = labeled_samples + unlabeled_samples
@@ -204,19 +210,31 @@ def create_dataset_ood(name, root, splits=('train'),
                 # get ids
                 if seed is not None:
                     all_idx = random.Random(seed).sample(ids, k=total_samples)
+                    # get labeled, test, unlabeled, and full labeled sets.
                     labeled_idx = random.Random(seed).sample(all_idx, k=labeled_samples)
-                    unlabeled_idx = [i for i in all_idx if i not in labeled_idx]
+                    test_idx = [i for i in all_idx if i not in labeled_idx]
+
+                    full_labeled_idx = [i for i in ids if i not in test_idx]
+                    unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
                 else:
                     all_idx = random.sample(ids, k=total_samples)
                     labeled_idx = random.sample(all_idx, k=labeled_samples)
-                    unlabeled_idx = [i for i in all_idx if i not in labeled_idx]
+                    test_idx = [i for i in all_idx if i not in labeled_idx]
+                    full_labeled_idx = [i for i in ids if i not in test_idx]
+                    unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
 
                 # keep just the necessary ids
                 new_labeled['images'] = [i for i in new_labeled['images'] if i['id'] in labeled_idx]
                 new_labeled['annotations'] = [i for i in new_labeled['annotations'] if i['image_id'] in labeled_idx]
                 
-                new_unlabeled['images'] = [i for i in new_unlabeled['images'] if i['id'] in unlabeled_idx]
+                new_test['images'] = [i for i in new_test['images'] if i['id'] in test_idx]
+                new_test['annotations'] = [i for i in new_test['annotations'] if i['image_id'] in test_idx]
+
+                new_full_labeled['annotations'] = [i for i in new_full_labeled['annotations'] if i['image_id'] in full_labeled_idx]
+                new_full_labeled['images'] = [i for i in new_full_labeled['images'] if i['id'] in full_labeled_idx]
+
                 new_unlabeled['annotations'] = [i for i in new_unlabeled['annotations'] if i['image_id'] in unlabeled_idx]
+                new_unlabeled['images'] = [i for i in new_unlabeled['images'] if i['id'] in unlabeled_idx]
                 #--------------------------------------------
 
                 # labeled dataset
@@ -230,6 +248,17 @@ def create_dataset_ood(name, root, splits=('train'),
                     parser=create_parser(dataset_cfg.parser, cfg=parser_cfg_labeled),
                 )
 
+                # test dataset
+                parser_cfg_test = CocoParserCfg(
+                    ann_filename = "",
+                    json_dict=new_test,
+                    has_labels=split_cfg['has_labels']
+                )
+                datasets[f'{s}_test'] = dataset_cls(
+                    data_dir=root / Path(split_cfg['img_dir']),
+                    parser=create_parser(dataset_cfg.parser, cfg=parser_cfg_test),
+                )
+
                 # unlabeled dataset
                 parser_cfg_unlabeled = CocoParserCfg(
                     ann_filename = "",
@@ -239,6 +268,17 @@ def create_dataset_ood(name, root, splits=('train'),
                 datasets[f'{s}_unlabeled'] = dataset_cls(
                     data_dir=root / Path(split_cfg['img_dir']),
                     parser=create_parser(dataset_cfg.parser, cfg=parser_cfg_unlabeled),
+                )
+
+                # full_labeled dataset
+                parser_cfg_full_labeled = CocoParserCfg(
+                    ann_filename = "",
+                    json_dict=new_full_labeled,
+                    has_labels=split_cfg['has_labels']
+                )
+                datasets[f'{s}_full_labeled'] = dataset_cls(
+                    data_dir=root / Path(split_cfg['img_dir']),
+                    parser=create_parser(dataset_cfg.parser, cfg=parser_cfg_full_labeled),
                 )
                 
             else:

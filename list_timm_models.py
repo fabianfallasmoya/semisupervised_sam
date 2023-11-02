@@ -15,7 +15,7 @@ import timm
 #         "resnetrs420",
 #         "vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k"
 #     ]
-m = ['swin_large_patch4_window12_384.ms_in22k_ft_in1k']
+m = ['resnetrs420']
 for i in m:
     model = timm.create_model(i, pretrained=False).cuda()
     num = sum(p.numel() for p in model.parameters())

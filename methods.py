@@ -46,12 +46,15 @@ def sam_simple(args, output_root):
     """
     # STEP 1: create data loaders
     # the loaders will load the images in numpy arrays
-    _, unlabeled_loader = create_datasets_and_loaders(args)
+    label_l,test_l,unlabeled_l,full_label_l = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
-    save_gt(unlabeled_loader, output_root)
+    save_loader_to_json(label_l, output_root, filename="label")
+    save_loader_to_json(test_l, output_root, filename="test")
+    save_loader_to_json(unlabeled_l, output_root, filename="unlabel")
+    save_loader_to_json(full_label_l, output_root, filename="full_label")
     
     # STEP 2: create an SAM instance
     sam = SAM(args)
@@ -60,13 +63,13 @@ def sam_simple(args, output_root):
     # STEP 3: classify these inferences using the few-shot model
     # and SAM predictions.
     MAX_IMAGES = 100000
-    gt_eval_path = f"{output_root}/gt.json"
+    gt_eval_path = f"{output_root}/test.json"
     coco_gt = COCO(f"{gt_eval_path}")
     image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
     res_data = f"{output_root}/bbox_results.json"
 
     save_inferences_simple(
-        sam, unlabeled_loader, res_data,
+        sam, test_l, res_data,
         args.use_sam_embeddings
     )
     eval_sam(
@@ -82,11 +85,11 @@ def few_shot(args, is_single_class=None, output_root=None):
     """
     # STEP 1: create data loaders
     # the loaders will load the images in numpy arrays
-    labeled_loader, unlabeled_loader = create_datasets_and_loaders(args)
+    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
-    save_gt(unlabeled_loader, output_root)
+    save_loader_to_json(test_loader, output_root, filename="test")
 
     # STEP 2: create an SAM instance
     sam = SAM(args)
@@ -153,38 +156,39 @@ def few_shot(args, is_single_class=None, output_root=None):
     # STEP 5: classify these inferences using the few-shot model
     # and SAM predictions.
     MAX_IMAGES = 100000
-    gt_eval_path = f"{output_root}/gt.json"
+    gt_eval_path = f"{output_root}/test.json"
     coco_gt = COCO(f"{gt_eval_path}")
     image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
     res_data = f"{output_root}/bbox_results.json"
 
     if is_single_class:
         save_inferences_singleclass(
-            fs_model, unlabeled_loader, sam, 
+            fs_model, test_loader, sam, 
             output_root, trans_norm,
             args.use_sam_embeddings
         )
     else:
         save_inferences_twoclasses(
-            fs_model, unlabeled_loader, sam, 
+            fs_model, test_loader, sam, 
             res_data, trans_norm,
             args.use_sam_embeddings
         )
 
     # STEP 6: evaluate model
     if is_single_class:
-        for idx_ in range(1,4):
-            MAX_IMAGES = 100000
-            gt_eval_path = f"{output_root}/gt.json"
-            coco_gt = COCO(gt_eval_path)
-            image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
-            res_data = f"{output_root}/bbox_results_std{idx_}.json"
+        # for idx_ in range(1,4):
+        idx_ = 2
+        MAX_IMAGES = 100000
+        gt_eval_path = f"{output_root}/test.json"
+        coco_gt = COCO(gt_eval_path)
+        image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+        res_data = f"{output_root}/bbox_results_std{idx_}.json"
 
-            eval_sam(
-                coco_gt, image_ids, res_data, 
-                output_root, method=args.method,
-                number=idx_
-            )
+        eval_sam(
+            coco_gt, image_ids, res_data, 
+            output_root, method=args.method,
+            number=idx_
+        )
     else:
         eval_sam(
             coco_gt, image_ids, res_data, 
@@ -198,12 +202,12 @@ def ood_filter(args, output_root):
     :output_root (str) -> output folder location.
     """
     # STEP 1: create data loaders
-    labeled_loader, unlabeled_loader = create_datasets_and_loaders(args)
+    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
-    save_gt(unlabeled_loader, output_root)
+    save_loader_to_json(test_loader, output_root, filename="test")
 
     # STEP 2: run the ood filter using inferences from SAM
     # sam instance - default values of the model
@@ -228,7 +232,7 @@ def ood_filter(args, output_root):
 
     # run filter using the backbone, sam, and ood
     ood_filter_neg_likelihood.run_filter(
-        labeled_loader, unlabeled_loader, 
+        labeled_loader, test_loader, 
         dir_filtered_root=output_root,
         ood_thresh=args.ood_thresh,
         ood_hist_bins=args.ood_histogram_bins
@@ -238,7 +242,7 @@ def ood_filter(args, output_root):
     # run for std 1 and 2
     for idx_ in range(1,4):
         MAX_IMAGES = 100000
-        gt_eval_path = f"{output_root}/gt.json"
+        gt_eval_path = f"{output_root}/test.json"
         coco_gt = COCO(gt_eval_path)
         image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
         res_data = f"{output_root}/bbox_results_std{idx_}.json"
@@ -257,12 +261,12 @@ def selective_search(args, output_root):
     """
     # STEP 1: create data loaders
     # the loaders will load the images in numpy arrays
-    _, unlabeled_loader = create_datasets_and_loaders(args)
+    _, test_loader,_,_ = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
-    save_gt(unlabeled_loader, output_root)
+    save_loader_to_json(test_loader, output_root, "test")
 
     # STEP 2: run inferences using selective search
     results = []
@@ -271,7 +275,7 @@ def selective_search(args, output_root):
     imgs_scores = []
     max = 100
     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
-    for (_,batch) in tqdm(enumerate(unlabeled_loader), total= len(unlabeled_loader)):
+    for (_,batch) in tqdm(enumerate(test_loader), total= len(test_loader)):
 
         # every batch is a tuple: (torch.imgs , metadata_and_bboxes)
         # ITERATE: IMAGE
@@ -315,7 +319,7 @@ def selective_search(args, output_root):
 
     # STEP 3: evaluate results
     MAX_IMAGES = 100000
-    gt_eval_path = f"{output_root}/gt.json"
+    gt_eval_path = f"{output_root}/test.json"
     coco_gt = COCO(gt_eval_path)
     image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
     res_data = f"{output_root}/bbox_results.json"
@@ -335,15 +339,15 @@ if __name__ == '__main__':
         seed_everything(args.seed)
 
     if args.use_sam_embeddings:
-        output_root = f"./output/{args.output_folder}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}_seed{args.seed}/{args.method}@samEmbed"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed"
     else:
-        output_root = f"./output/{args.output_folder}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}_seed{args.seed}/{args.method}@{args.timm_model}"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}"
 
     if args.method == Constants_MainMethod.SELECTIVE_SEARCH:
-        output_root = f"./output/{args.output_folder}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}_seed{args.seed}/{args.method}"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         selective_search(args, output_root)
     if args.method == Constants_MainMethod.ALONE:
-        output_root = f"./output/{args.output_folder}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}_seed{args.seed}/{args.method}"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         sam_simple(args, output_root)
     elif args.method == Constants_MainMethod.FEWSHOT_1_CLASS:
         few_shot(args, is_single_class=True, output_root=output_root)

@@ -119,15 +119,19 @@ def throttle_cpu(numa: int = None):
         temp = psutil.Process(i.id)
         temp.cpu_affinity([i for i in cpu_list])
 
-def save_gt(unlabeled_loader, output_root):
+def save_loader_to_json(unlabeled_loader, output_root, filename=None):
     """ Save new json file with gt.
     Params
     :unlabeled_loader (loader) -> to get all unlabeled imgs.
     :output_root (str) -> path to save the file.
+    :filename (str) -> name of the output file.
 
     Return
     :None
     """
+    if filename == None:
+        raise Exception("filename must be a string")
+
     # get gt
     img_ids = []
     categories = []
@@ -177,7 +181,7 @@ def save_gt(unlabeled_loader, output_root):
     #--------------------------
 
     # write output
-    gt_file = f"{output_root}/gt.json"
+    gt_file = f"{output_root}/{filename}.json"
     if os.path.isfile(gt_file):
         os.remove(gt_file)
     json.dump(gt_json, open(gt_file, 'w'), indent=4)
@@ -230,27 +234,45 @@ def create_datasets_and_loaders(args):
         labeled_samples=args.ood_labeled_samples,
         unlabeled_samples=args.ood_unlabeled_samples
     )
-    dataset_train_labeled = datasets[0]
-    dataset_train_unlabeled = datasets[1]
+    dataset_label = datasets[0]
+    dataset_test = datasets[1]
+    dataset_unlabel = datasets[2]
+    dataset_full_label = datasets[3]
 
     # create data loaders
     trans_numpy = transforms_toNumpy()
     normalize_imgs = False
-    loader_labeled = create_loader(
-        dataset_train_labeled,
+    loader_label = create_loader(
+        dataset_label,
         img_resolution=args.img_resolution,
         batch_size=args.batch_size_labeled,
         is_training=False,
         transform_fn = trans_numpy,
         normalize_img=normalize_imgs
     )
-    loader_unlabeled = create_loader(
-        dataset_train_unlabeled,
+    loader_test = create_loader(
+        dataset_test,
         img_resolution=args.img_resolution,
         batch_size=args.batch_size_unlabeled,
         is_training=False,
         transform_fn = trans_numpy,
         normalize_img=normalize_imgs
     )
-    return loader_labeled, loader_unlabeled
+    loader_unlabel = create_loader(
+        dataset_unlabel,
+        img_resolution=args.img_resolution,
+        batch_size=args.batch_size_unlabeled,
+        is_training=False,
+        transform_fn = trans_numpy,
+        normalize_img=normalize_imgs
+    )
+    loader_full_label = create_loader(
+        dataset_full_label,
+        img_resolution=args.img_resolution,
+        batch_size=args.batch_size_unlabeled,
+        is_training=False,
+        transform_fn = trans_numpy,
+        normalize_img=normalize_imgs
+    )
+    return loader_label, loader_test, loader_unlabel, loader_full_label
     

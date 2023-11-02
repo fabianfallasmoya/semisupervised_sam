@@ -1,4 +1,4 @@
-GPU_NUM=2
+GPU_NUM=1
 export CUDA_VISIBLE_DEVICES=${GPU_NUM}
 DATASET_NAME="PINEAPPLES2_5mts_nosplits"
 ROOT="../../../share/semi_supervised/pineapples/${DATASET_NAME}" 
@@ -22,8 +22,8 @@ METHODS_FEWSHOT=( 'fewshot1' 'fewshotOOD' )
 MODELS=( 'swinv2_base_window8_256.ms_in1k' 'swin_large_patch4_window12_384.ms_in22k_ft_in1k' 'vit_huge_patch14_clip_336.laion2b_ft_in12k_in1k' ) 
 
 
-LABELED_NUMBER=( '6' '7' '8' '9' '10' ) #'1' '2' '3' '4' '5' 
-# LABELED_NUMBER=( '1' ) 
+LABELED_NUMBER=( '1' '2' '3' '4' '5' ) #'6' '7' '8' '9' '10'
+# LABELED_NUMBER=( '1' )   
 
 
 for method_fewshot in "${METHODS_FEWSHOT[@]}"
@@ -55,59 +55,3 @@ do
         done
     done
 done
-
-
-# for curr_method in "${METHODS_SAM[@]}"
-# do
-#     #echo ${curr_method}
-#     python methods.py \
-#         --root ${ROOT} \
-#         --num-classes ${NUM_CLASSES} \
-#         --load-pretrained \
-#         --dataset ${DATASET} \
-#         --batch-size-labeled ${BATCH_SIZE_LABELED} \
-#         --batch-size-unlabeled ${BATCH_SIZE_UNLABELED} \
-#         --ood-labeled-samples ${OOD_LABELED_SAMPLES} \
-#         --ood-unlabeled-samples ${OOD_UNLABELED_SAMPLES} \
-#         --new-sample-size ${NEW_SAMPLE_SIZE} \
-#         --numa ${GPU_NUM} \
-#         --output-folder ${DATASET_NAME} \
-#         --seed ${SEED} \
-#         --sam-model ${SAM_MODEL} \
-#         --ood-thresh ${OOD_THRESH} \
-#         --ood-histogram-bins ${OOD_BINS} \
-#         --use-sam-embeddings 1 \
-#         --method ${curr_method}
-#     sleep 10
-# done
-
-
-# for current_model in "${MODELS[@]}"
-# do
-#     for curr_method in "${METHODS_TIMM[@]}"
-#     do
-#         # echo ${current_model}
-#         # echo ${curr_method}
-#         # echo ${embeds}
-#         python methods.py \
-#             --root ${ROOT} \
-#             --num-classes ${NUM_CLASSES} \
-#             --load-pretrained \
-#             --timm-model ${current_model} \
-#             --dataset ${DATASET} \
-#             --batch-size-labeled ${BATCH_SIZE_LABELED} \
-#             --batch-size-unlabeled ${BATCH_SIZE_UNLABELED} \
-#             --ood-labeled-samples ${OOD_LABELED_SAMPLES} \
-#             --ood-unlabeled-samples ${OOD_UNLABELED_SAMPLES} \
-#             --new-sample-size ${NEW_SAMPLE_SIZE} \
-#             --numa ${GPU_NUM} \
-#             --output-folder ${DATASET_NAME} \
-#             --seed ${SEED} \
-#             --sam-model ${SAM_MODEL} \
-#             --ood-thresh ${OOD_THRESH} \
-#             --ood-histogram-bins ${OOD_BINS} \
-#             --use-sam-embeddings 0 \
-#             --method ${curr_method}
-#         sleep 10
-#     done
-# done
