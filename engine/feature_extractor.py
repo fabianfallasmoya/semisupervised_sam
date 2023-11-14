@@ -115,7 +115,13 @@ class MyFeatureExtractor(nn.Module):
         if self.use_fc:
             x = self.fc_final(x)
         return x
-
+    
+    def forward_features(self, x):
+        """ Conditional forwarding (useful when we like the final feature maps) """
+        x = self.backbone.forward_features(x)
+        if self.use_fc:
+            x = self.fc_final(x)
+        return x
     #----------------------
     @property
     def use_fc(self):
