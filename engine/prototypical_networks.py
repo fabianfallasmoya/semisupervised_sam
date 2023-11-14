@@ -23,7 +23,7 @@ class PrototypicalNetworks(FewShot):
     classification scores for query images based on their euclidean distance to the prototypes.
     """
 
-    def __init__(self, is_single_class, use_sam_embeddings, *args, **kwargs):
+    def __init__(self, is_single_class, use_sam_embeddings, device="cpu", *args, **kwargs):
         """
         Raises:
             ValueError: if the backbone is not a feature extractor,
@@ -32,6 +32,7 @@ class PrototypicalNetworks(FewShot):
         super().__init__(*args, **kwargs)
         self.mean = None
         self.std = None
+        self.device = device
         self.num_samples = None
         self.is_single_class = is_single_class
         self.use_sam_embeddings = use_sam_embeddings
@@ -41,7 +42,7 @@ class PrototypicalNetworks(FewShot):
         Returns the embeddings from the backbone which is a timm model.
         """
         with torch.no_grad():
-            x = self.backbone.forward(img.unsqueeze(dim=0).to('cuda'))
+            x = self.backbone.forward(img.unsqueeze(dim=0).to(self.device))
         return x
     
     def get_embeddings_sam(self, img):
@@ -97,7 +98,7 @@ class PrototypicalNetworks(FewShot):
         else:
             support_labels = torch.Tensor(lbl_1)
             prototypes = compute_prototypes(support_features, support_labels)
-        self.prototypes = prototypes.to('cuda')
+        self.prototypes = prototypes.to(self.device)
 
         #---------------------------------------
         if self.is_single_class:
