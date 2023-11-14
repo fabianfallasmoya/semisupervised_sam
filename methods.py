@@ -34,6 +34,8 @@ from pycocotools.coco import COCO
 from engine import SAM
 from engine.feature_extractor import MyFeatureExtractor
 from engine.prototypical_networks import PrototypicalNetworks
+from engine.relational_networks import RelationNetworks
+from engine.matching_networks import MatchingNetworks
 from engine.ood_filter_neg_likelihood import OOD_filter_neg_likelihood
 #------------------------------------------------------------------------------------------------
 
@@ -77,7 +79,7 @@ def sam_simple(args, output_root):
         output_root, method=args.method
     )
 
-def few_shot(args, is_single_class=None, output_root=None):
+def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     """ Use sam and fewshot to classify the masks.
     Params
     :args -> parameters from bash.
@@ -109,12 +111,32 @@ def few_shot(args, is_single_class=None, output_root=None):
             args.num_classes * 2 # one additional class for background
         )
 
-    fs_model = PrototypicalNetworks(
-        is_single_class,
-        args.use_sam_embeddings,
-        feature_extractor, 
-        use_softmax=False,
-    ).to('cuda')
+    if fewshot_method == Constants_MainMethod.FEWSHOT_2_CLASSES_RELATIONAL_NETWORK:
+        fs_model = RelationNetworks(
+            is_single_class=is_single_class,
+            use_sam_embeddings=args.use_sam_embeddings,
+            backbone=feature_extractor, 
+            use_softmax=False,
+            feature_dimension = feature_extractor.features_size,
+            device=args.device
+        ).to(args.device)
+    elif fewshot_method == Constants_MainMethod.FEWSHOT_2_CLASSES_MATCHING:
+        fs_model = MatchingNetworks(
+            is_single_class=is_single_class,
+            use_sam_embeddings=args.use_sam_embeddings,
+            backbone=feature_extractor, 
+            use_softmax=False,
+            feature_dimension = feature_extractor.features_size,
+            device=args.device
+        ).to(args.device)
+    else:
+        fs_model = PrototypicalNetworks(
+            is_single_class=is_single_class, 
+            use_sam_embeddings=args.use_sam_embeddings,
+            backbone=feature_extractor, 
+            use_softmax=False,
+            device=args.device
+        ).to(args.device)
 
     # STEP 4: get the raw support set
     trans_norm = None
@@ -350,8 +372,12 @@ if __name__ == '__main__':
         output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         sam_simple(args, output_root)
     elif args.method == Constants_MainMethod.FEWSHOT_1_CLASS:
-        few_shot(args, is_single_class=True, output_root=output_root)
+        few_shot(args, is_single_class=True, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES:
-        few_shot(args, is_single_class=False, output_root=output_root)
+        few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_OOD:
         ood_filter(args, output_root)
+    elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_RELATIONAL_NETWORK:
+        few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
+    elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_MATCHING:
+        few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
