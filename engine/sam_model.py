@@ -18,7 +18,7 @@ class SAM:
             self.model_type = "vit_h"
         else:
             RuntimeError("No sam config found")
-        self.model = sam_model_registry[self.model_type](checkpoint=self.checkpoint).to('cuda')
+        self.model = sam_model_registry[self.model_type](checkpoint=self.checkpoint).to(args.device)
         self.mask_generator = None
 
         # get the size of the embeddings
@@ -108,6 +108,17 @@ class SAM:
         self.mask_generator.predictor.reset_image()
         return avg_pooled
 
+    def get_features(self, img):
+        """
+        Receive an image and return the feature maps.
 
+        Params
+        :img (numpy.array) -> image.
+        Return
+        :torch of the embeddings from SAM.
+        """
+        self.mask_generator.predictor.set_image(img)
+        embeddings = self.mask_generator.predictor.features
+        return embeddings
 
         
