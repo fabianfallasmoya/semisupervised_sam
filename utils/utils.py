@@ -20,6 +20,7 @@ class Constants_MainMethod:
     FEWSHOT_OOD = 'fewshotOOD'
     FEWSHOT_2_CLASSES_RELATIONAL_NETWORK = 'fewshotRelationalNetwork'
     FEWSHOT_2_CLASSES_MATCHING = 'fewshotMatching'
+    FEWSHOT_2_CLASSES_BDCSPN = 'fewshotBDCSPN'
     SELECTIVE_SEARCH = 'ss'
 
 def add_bool_arg(parser, name, default=False, help=''):
