@@ -70,20 +70,22 @@ class FASTSAM:
 
         # batch[0] has the images    
         img = batch[0][idx].cpu().numpy().transpose(1,2,0)
+        print("Numpy image size: ", img.shape)
         img_pil = Image.fromarray(img)
+        print("Image size: ", img_pil.size)
 
         # run sam to create proposals
         #masks = self.mask_generator.generate(img)
-        everything_results = self.model(img_pil, retina_masks=True, conf=0.1, iou=0.2, imgsz=896)
-        prompt_process = FastSAMPrompt(img_pil, everything_results,  device=self.device)
-        prompt_process.everything_prompt()
-        results = prompt_process.results[0].boxes
+        everything_results = self.model(img_pil)#, retina_masks=True, conf=0.1, iou=0.2, imgsz=896)
+        #prompt_process = FastSAMPrompt(img_pil, everything_results,  device=self.device)
+        #prompt_process.everything_prompt()
+        results = everything_results[0].boxes
 
         for xyxy, xywh, score in zip(results.xyxy, results.xywh, results.conf):
             #xyxy = torchvision.ops.box_convert(
             #    torch.tensor(xywh), in_fmt='xywh', out_fmt='xyxy'
             #)
-            crop = img_pil.crop(np.array(xyxy))  
+            crop = img_pil.crop(np.array(xyxy.cpu().round().long()))  
             if use_sam_embeddings:
                 sample = transform.preprocess_sam_embed(crop)
             else:
