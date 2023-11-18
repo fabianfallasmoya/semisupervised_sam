@@ -8,3 +8,4 @@ from .relational_networks import *
 from .bdcspn import *
 from .sam_model import *
 from .fastsam_model import *
+from .mobilesam_model import *
