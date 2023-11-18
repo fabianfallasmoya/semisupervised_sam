@@ -4,6 +4,8 @@ import torch
 import cv2
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 from engine.fastsam_model import FASTSAM
+from engine.mobilesam_model import MobileSAM
+
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
@@ -96,10 +98,12 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     save_loader_to_json(test_loader, output_root, filename="test")
 
     # STEP 2: create an SAM instance
-    sam = SAM(args)
-    sam.load_simple_mask()
+    #sam = SAM(args)
+    #sam.load_simple_mask()
     #sam = FASTSAM(args)
     #sam.load_simple_mask()
+    sam = MobileSAM(args)
+    sam.load_simple_mask()
 
     # STEP 3: create few-shot model
     if args.use_sam_embeddings:
