@@ -77,6 +77,8 @@ class RelationNetworks(FewShot):
         """
         with torch.no_grad():
             x =  self.backbone.forward_features(img.unsqueeze(dim=0).to(self.device))
+            if x.size() == torch.Size([1, 12, 12, 1536]):
+                x = x.permute(0, 3, 1, 2)
         return x
 
     def get_embeddings_sam(self, img):
@@ -163,12 +165,6 @@ class RelationNetworks(FewShot):
             ),
             dim=2,
         ).view(-1, 2 * self.feature_dimension, *z_query.shape[2:])
-        #print("query_prototype_feature_pairs: ", query_prototype_feature_pairs)
-        #print("self.prototypes: ", self.prototypes)
-        #print("self.prototypes shape: ", self.prototypes.shape)
-
-        print("z_query: ", z_query)
-        print("z_query shape: ", z_query.shape)
 
         # Each pair (query, prototype) is assigned a relation scores in [0,1]. Then we reshape the
         # tensor so that relation_scores is of shape (n_queries, n_prototypes).
