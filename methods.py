@@ -41,8 +41,8 @@ from engine.relational_networks import RelationNetworks
 from engine.matching_networks import MatchingNetworks
 from engine.bdcspn import BDCSPN
 from engine.ood_filter_neg_likelihood import OOD_filter_neg_likelihood
+from engine.mahalanobis_filter import MahalanobisFilter
 #------------------------------------------------------------------------------------------------
-
 
 def sam_simple(args, output_root):
     """ Run sam and store all masks as inferences 
@@ -98,12 +98,15 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     save_loader_to_json(test_loader, output_root, filename="test")
 
     # STEP 2: create an SAM instance
-    #sam = SAM(args)
-    #sam.load_simple_mask()
-    #sam = FASTSAM(args)
-    #sam.load_simple_mask()
-    sam = MobileSAM(args)
-    sam.load_simple_mask()
+    if args.sam_mode == "mobilesam":
+        sam = MobileSAM(args)
+        sam.load_simple_mask()
+    elif args.sam_mode == "fastsam":
+        sam = FASTSAM(args)
+        sam.load_simple_mask()
+    else:
+        sam = SAM(args)
+        sam.load_simple_mask()
 
     # STEP 3: create few-shot model
     if args.use_sam_embeddings:
@@ -366,6 +369,54 @@ def selective_search(args, output_root):
         output_root, method=args.method
     )
 
+def mahalanobis_filter(args, is_single_class=True, output_root=None):
+    """ Use sam and fewshot (maximum likelihood) to classify masks.
+    Params
+    :args -> parameters from bash.
+    :output_root (str) -> output folder location.
+    """
+    # STEP 1: create data loaders
+    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
+    # save new gt into a separate json file
+    if not os.path.exists(output_root):
+        os.makedirs(output_root)
+    # save gt
+    save_loader_to_json(test_loader, output_root, "test")
+
+    # STEP 2: run the ood filter using inferences from SAM
+    # sam instance - default values of the model
+    sam = SAM(args)
+    sam.load_simple_mask()
+
+    # instance the main class and instance the timm model
+    mahalanobis_filter = MahalanobisFilter(
+        timm_model=args.timm_model, 
+        timm_pretrained=args.load_pretrained,
+        sam_model=sam,
+        use_sam_embeddings=args.use_sam_embeddings,
+        is_single_class=is_single_class
+    )
+
+    # run filter using the backbone, sam, and ood
+    mahalanobis_filter.run_filter(
+        labeled_loader, test_loader, 
+        dir_filtered_root=output_root
+    )
+
+    # STEP 3: evaluate results
+    if is_single_class:
+        MAX_IMAGES = 100000
+        gt_eval_path = f"{output_root}/test.json"
+        coco_gt = COCO(gt_eval_path)
+        image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+        res_data = f"{output_root}/bbox_results.json"
+
+        eval_sam(
+            coco_gt, image_ids, res_data, 
+            output_root, method=args.method,
+        )
+    else:
+        print("No implemented multiple class mahalanobis!")
 
 if __name__ == '__main__':
     args = get_parameters()
@@ -376,10 +427,9 @@ if __name__ == '__main__':
         seed_everything(args.seed)
 
     if args.use_sam_embeddings:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed@{args.sam_mode}"
     else:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}"
-
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}@{args.sam_mode}"
     if args.method == Constants_MainMethod.SELECTIVE_SEARCH:
         output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         selective_search(args, output_root)
@@ -398,3 +448,5 @@ if __name__ == '__main__':
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_BDCSPN:
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
+    elif args.method == Constants_MainMethod.FEWSHOT_MAHALANOBIS:
+        mahalanobis_filter(args, is_single_class=True, output_root=output_root)
