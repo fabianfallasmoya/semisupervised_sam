@@ -21,6 +21,7 @@ class Constants_MainMethod:
     FEWSHOT_2_CLASSES_RELATIONAL_NETWORK = 'fewshotRelationalNetwork'
     FEWSHOT_2_CLASSES_MATCHING = 'fewshotMatching'
     FEWSHOT_2_CLASSES_BDCSPN = 'fewshotBDCSPN'
+    FEWSHOT_MAHALANOBIS = 'fewshotMahalanobis'
     SELECTIVE_SEARCH = 'ss'
 
 def add_bool_arg(parser, name, default=False, help=''):
@@ -90,6 +91,7 @@ def get_parameters():
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--sam-model', type=str, default=None)
     parser.add_argument('--device', type=str, default="cuda")
+    parser.add_argument('--sam-mode', type=str, default="sam")
 
     return parser.parse_args()
 
