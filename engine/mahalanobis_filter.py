@@ -58,7 +58,6 @@ class MahalanobisFilter:
         self.trans_norm = trans_norm
         self.use_sam_embeddings = use_sam_embeddings
 
-
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
         self.inv_cov = torch.Tensor(LedoitWolf().fit(embeddings.cpu()).precision_,device="cpu")
@@ -91,6 +90,7 @@ class MahalanobisFilter:
     
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
+        print(distances)
         return distances
     
     def run_filter(self,
@@ -141,10 +141,12 @@ class MahalanobisFilter:
         # with respect of the support features and get the threshold
         #----------------------------------------------------------------
         if self.is_single_class:
+            #self.fit(support_features_imgs_1)
+            self.fit(support_features)
 
-            self.fit(support_features_imgs_1)
-            distances = self.predict(support_features_imgs_2)
-            
+            #distances = self.predict(support_features_imgs_2)
+            distances = self.predict(support_features)
+
             self.threshold = max(distances).item()
 
         # go through each batch unlabeled
