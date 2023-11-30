@@ -383,10 +383,17 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
     # save gt
     save_loader_to_json(test_loader, output_root, "test")
 
-    # STEP 2: run the ood filter using inferences from SAM
     # sam instance - default values of the model
-    sam = SAM(args)
-    sam.load_simple_mask()
+    # STEP 2: create an SAM instance
+    if args.sam_mode == "mobilesam":
+        sam = MobileSAM(args)
+        sam.load_simple_mask()
+    elif args.sam_mode == "fastsam":
+        sam = FASTSAM(args)
+        sam.load_simple_mask()
+    else:
+        sam = SAM(args)
+        sam.load_simple_mask()
 
     # instance the main class and instance the timm model
     mahalanobis_filter = MahalanobisFilter(

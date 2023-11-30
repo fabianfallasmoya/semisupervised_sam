@@ -1,14 +1,11 @@
-from sklearn.model_selection import train_test_split
-from collections import OrderedDict
 from typing import List
 from typing import Optional
 from torch import Tensor, nn
 
 from .fewshot_model import FewShot
-from .fewshot_utils import compute_prototypes, compute_prototypes_singleclass
+from .fewshot_utils import compute_prototypes
 from .predesigned_modules import default_relation_module
 
-import scipy
 import torch
 import numpy as np
 
@@ -77,8 +74,6 @@ class RelationNetworks(FewShot):
         """
         with torch.no_grad():
             x =  self.backbone.forward_features(img.unsqueeze(dim=0).to(self.device))
-            if x.size() == torch.Size([1, 12, 12, 1536]):
-                x = x.permute(0, 3, 1, 2)
         return x
 
     def get_embeddings_sam(self, img):
@@ -108,29 +103,21 @@ class RelationNetworks(FewShot):
         else:
             y_labels = np.zeros(len(support_images))
 
-        imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
-            support_images, y_labels,
-            train_size = 0.6, stratify=y_labels,
-            shuffle=True # shuffle the data before splitting
-        )
-
         #---------------------------------------
         # get feature maps from the images
-        for img in imgs_1:
+        for img in support_images:
             if self.use_sam_embeddings:
                 t_temp = self.get_embeddings_sam(img)
             else:
                 t_temp = self.get_embeddings_timm(img)
-                #print("T_temp shape", t_temp.shape)
             support_features.append(t_temp.squeeze().cpu())
 
         # get prototypes and save them into cuda memory
         support_features = torch.stack(support_features)
         if self.is_single_class:
-            prototypes = compute_prototypes_singleclass(support_features)
-            prototypes = prototypes.unsqueeze(dim=0) # 2D tensor
+            print("Not implemented!")
         else:
-            support_labels = torch.Tensor(lbl_1)
+            support_labels = torch.Tensor(support_labels)
             prototypes = compute_prototypes(support_features, support_labels)
         self.prototypes = prototypes.to(self.device)
 
@@ -142,9 +129,6 @@ class RelationNetworks(FewShot):
         score. Finally, the classification vector of the query is its relation score to each class
         prototype.
         """
-        #query_features = self.compute_features(query_images)
-        #self._validate_features_shape(query_features)
-
         if self.use_sam_embeddings:
             z_query = self.get_embeddings_sam(query_image)
         else:

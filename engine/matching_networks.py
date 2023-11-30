@@ -2,27 +2,16 @@
 See original implementation at
 https://github.com/facebookresearch/low-shot-shrink-hallucinate
 """
-from typing import Optional, List
+from typing import Optional
 import numpy as np
-
 import torch
 from torch import Tensor, nn
-from sklearn.model_selection import train_test_split
-import scipy
-
-#from easyfsl.modules.predesigned_modules import (
-#    default_matching_networks_query_encoder,
-#    default_matching_networks_support_encoder,
-#)
 
 from .predesigned_modules import (
     default_matching_networks_query_encoder,
     default_matching_networks_support_encoder,
 )
-
-#from .few_shot_classifier import FewShotClassifier
 from .fewshot_model import FewShot
-
 
 class MatchingNetworks(FewShot):
     """
@@ -37,18 +26,15 @@ class MatchingNetworks(FewShot):
     Be careful: while some methods use Cross Entropy Loss for episodic training, Matching Networks
     output log-probabilities, so you'll want to use Negative Log Likelihood Loss.
     """
-
     def __init__(
         self,
         is_single_class,
         use_sam_embeddings,
-        *args,
-
         feature_dimension: int,
         support_encoder: Optional[nn.Module] = None,
         query_encoder: Optional[nn.Module] = None,
         device="cpu",
-
+        *args,
         **kwargs,
     ):
         """
@@ -77,18 +63,14 @@ class MatchingNetworks(FewShot):
             if query_encoder
             else default_matching_networks_query_encoder(self.feature_dimension)
         )
-
         self.softmax = nn.Softmax(dim=1)
 
         # Here we create the fields so that the model can store
         # the computed information from one support set
         self.contextualized_support_features = torch.tensor(())
         self.one_hot_support_labels = torch.tensor(())
-
-        # Add new variables DANNY
         self.is_single_class = is_single_class
         self.use_sam_embeddings = use_sam_embeddings        
-
 
     def get_embeddings_timm(self, img):
         """
@@ -106,7 +88,6 @@ class MatchingNetworks(FewShot):
             x = self.backbone.get_embeddings(img)
         return x
     
-
     def process_support_set(
         self,
         support_images: Tensor,
@@ -121,13 +102,6 @@ class MatchingNetworks(FewShot):
             support_images: images of the support set of shape (n_support, **image_shape)
             support_labels: labels of support set images of shape (n_support, )
         """
-        #support_features = self.compute_features(support_images)
-        #self._validate_features_shape(support_features)
-        #self.contextualized_support_features = self.encode_support_features(
-        #    support_features
-        #)
-
-        # CODE DANNY
         support_features = []
         self.num_samples = len(support_images)
 
@@ -137,15 +111,9 @@ class MatchingNetworks(FewShot):
             y_labels = np.zeros(len(support_images))
         else:
             y_labels = np.array(support_labels) 
-        imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
-            support_images, y_labels, 
-            train_size = 0.6, stratify=y_labels,
-            shuffle=True # shuffle the data before splitting
-        )
-        #---------------------------------------
         
         # get feature maps from the images
-        for img in imgs_1:
+        for img in support_images:
             if self.use_sam_embeddings:
                 t_temp = self.get_embeddings_sam(img)
             else:
@@ -153,36 +121,11 @@ class MatchingNetworks(FewShot):
             support_features.append(t_temp.squeeze().cpu())
         
         support_features = torch.stack(support_features)
-        #self._validate_features_shape(support_features)
         self.contextualized_support_features = self.encode_support_features(
             support_features
         )
 
-        self.one_hot_support_labels = nn.functional.one_hot(torch.tensor(lbl_1, dtype=torch.long)).float()
-        # CODE DANNY
-        
-        #---------------------------------------
-        if self.is_single_class:
-            self._calculate_statistics(imgs_2)
-        #---------------------------------------
-
-    def _calculate_statistics(
-        self,
-        imgs: List,
-    ) -> Tensor:
-        """     
-        Get metrics from the embeddings.
-
-        Params
-        :imgs (tensor) -> embedding to calculate metrics.
-        """
-        assert self.is_single_class, "This method can be used just in single class"
-        scores = []
-        for img in imgs:
-            score = self.forward(img)
-            scores.append(score.cpu().item())
-        self.mean = scipy.mean(scores)
-        self.std = scipy.std(scores)
+        self.one_hot_support_labels = nn.functional.one_hot(torch.tensor(y_labels, dtype=torch.long)).float()        
         
     def forward(self, query_image: Tensor) -> Tensor:
         """
@@ -196,17 +139,12 @@ class MatchingNetworks(FewShot):
             a prediction of classification scores for query images of shape (n_query, n_classes)
         """
 
-        # Refine query features using the context of the whole support set
-        #query_features = self.compute_features(query_images)
-        
+        # Refine query features using the context of the whole support set        
         if self.use_sam_embeddings:
             z_query = self.get_embeddings_sam(query_image)
         else:
             z_query = self.get_embeddings_timm(query_image)        
         
-        
-        
-        #self._validate_features_shape(z_query)
         contextualized_query_features = self.encode_query_features(z_query)
 
         # Compute the matrix of cosine similarities between all query images
@@ -221,8 +159,6 @@ class MatchingNetworks(FewShot):
 
         # Compute query log probabilities based on cosine similarity to support instances
         # and support labels
-        #print("similarity_matrix shape: ", similarity_matrix.shape)
-        #print("self.one_hot_support_labels: ", self.one_hot_support_labels.shape)
         log_probabilities = (
             similarity_matrix.mm(self.one_hot_support_labels) + 1e-6
         ).log()
@@ -241,7 +177,6 @@ class MatchingNetworks(FewShot):
         Returns:
             contextualised support features, with the same shape as input features
         """
-
         # Since the LSTM is bidirectional, hidden_state is of the shape
         # [number_of_support_images, 2 * feature_dimension]
         hidden_state = self.support_features_encoder(support_features.unsqueeze(0))[
@@ -268,7 +203,6 @@ class MatchingNetworks(FewShot):
         Returns:
             contextualized query features, with the same shape as input features
         """
-
         hidden_state = query_features
         cell_state = torch.zeros_like(query_features)
 

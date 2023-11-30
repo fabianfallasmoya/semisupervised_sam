@@ -1,14 +1,11 @@
-from typing import List
 import torch
 import torch.nn as nn
-
 import numpy as np
+
+from typing import List
 from torch import Tensor
 from .fewshot_model import FewShot
-from .fewshot_utils import compute_prototypes, compute_prototypes_singleclass
-# import statistics
-import scipy
-from sklearn.model_selection import train_test_split
+from .fewshot_utils import compute_prototypes
 
 class BDCSPN(FewShot):
 
@@ -24,7 +21,7 @@ class BDCSPN(FewShot):
     def __init__(
         self,
         *args,
-        is_single_class, use_sam_embeddings,
+        is_single_class, use_sam_embeddings, device="cpu",
         **kwargs,
     ):
         """
@@ -38,21 +35,19 @@ class BDCSPN(FewShot):
         """
         super().__init__(*args, **kwargs)
 
-        # DANNY ADDED
         self.mean = None
         self.std = None
         self.num_samples = None
         self.is_single_class = is_single_class
         self.use_sam_embeddings = use_sam_embeddings
-        # DANNY ADDED
+        self.device = device
 
-    # DANNY ADDED
     def get_embeddings_timm(self, img):
         """
         Returns the embeddings from the backbone which is a timm model.
         """
         with torch.no_grad():
-            x = self.backbone.forward(img.unsqueeze(dim=0))#.to('cuda'))
+            x = self.backbone.forward(img.unsqueeze(dim=0)).to(self.device)
         return x
 
     def get_embeddings_sam(self, img):
@@ -62,11 +57,9 @@ class BDCSPN(FewShot):
         with torch.no_grad():
             x = self.backbone.get_embeddings(img)
         return x
-    # DANNY ADDED
+
     def process_support_set(
         self,
-        #support_images: Tensor,
-        #support_labels: Tensor,
         support_images: List,
         support_labels: List = None,
     ):
@@ -79,7 +72,6 @@ class BDCSPN(FewShot):
             support_images: images of the support set of shape (n_support, **image_shape)
             support_labels: labels of support set images of shape (n_support, )
         """
-        #support_features = self.compute_features(support_images)
         support_features = []
         self.num_samples = len(support_images)
 
@@ -89,20 +81,10 @@ class BDCSPN(FewShot):
             y_labels = np.zeros(len(support_images))
         else:
             y_labels = np.zeros(len(support_images))
-        imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
-            support_images, y_labels,
-            train_size = 0.6,
-            shuffle=True # shuffle the data before splitting
-        )
-        #---------------------------------------
-
-        # DANNY ADDED
-        support_labels = torch.Tensor(lbl_1)
-        # DANNY ADDED
-
+        support_labels = torch.Tensor(y_labels)
 
         # get feature maps from the images
-        for img in imgs_1:
+        for img in support_images:
             if self.use_sam_embeddings:
                 t_temp = self.get_embeddings_sam(img)
             else:
@@ -111,36 +93,10 @@ class BDCSPN(FewShot):
 
         # get prototypes and save them into cuda memory
         self.support_features = torch.stack(support_features)
-        if self.is_single_class:
-            prototypes = compute_prototypes_singleclass(self.support_features)
-            prototypes = prototypes.unsqueeze(dim=0) # 2D tensor
-        else:
-            support_labels = torch.Tensor(lbl_1)
-            prototypes = compute_prototypes(self.support_features, support_labels)
-        self.prototypes = prototypes#.to('cuda')
+        support_labels = torch.Tensor(support_labels)
+        prototypes = compute_prototypes(self.support_features, support_labels)
+        self.prototypes = prototypes.to(self.device)
         self.support_labels = support_labels
-        #---------------------------------------
-        if self.is_single_class:
-            self._calculate_statistics(imgs_2)
-        #---------------------------------------
-
-    def _calculate_statistics(
-        self,
-        imgs: List,
-    ) -> Tensor:
-        """
-        Get metrics from the embeddings.
-
-        Params
-        :imgs (tensor) -> embedding to calculate metrics.
-        """
-        assert self.is_single_class, "This method can be used just in single class"
-        scores = []
-        for img in imgs:
-            score = self.forward(img)
-            scores.append(score.cpu().item())
-        self.mean = scipy.mean(scores)
-        self.std = scipy.std(scores)
 
     def rectify_prototypes(self, query_features: Tensor):
         """
@@ -155,8 +111,6 @@ class BDCSPN(FewShot):
             0, keepdim=True
         ) - query_features.mean(0, keepdim=True)
         query_features = query_features + average_support_query_shift
-
-
 
         support_logits = self.cosine_distance_to_prototypes(self.support_features).exp()
         query_logits = self.cosine_distance_to_prototypes(query_features).exp()
@@ -191,14 +145,10 @@ class BDCSPN(FewShot):
         Update prototypes using query images, then classify query images based
         on their cosine distance to updated prototypes.
         """
-        #query_features = self.compute_features(query_images)
-
-        # DANNY CODE
         if self.use_sam_embeddings:
             z_query = self.get_embeddings_sam(query_images)
         else:
             z_query = self.get_embeddings_timm(query_images)
-        # DANNY CODE
         self.rectify_prototypes(
             query_features=z_query,
         )
