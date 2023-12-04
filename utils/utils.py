@@ -19,6 +19,7 @@ class Constants_MainMethod:
     FEWSHOT_2_CLASSES = 'fewshot2'
     FEWSHOT_OOD = 'fewshotOOD'
     SELECTIVE_SEARCH = 'ss'
+    FEWSHOT_COVARIANCE = 'fewshotcov'
 
 def add_bool_arg(parser, name, default=False, help=''):
     dest_name = name.replace('-', '_')

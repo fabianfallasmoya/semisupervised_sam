@@ -253,6 +253,20 @@ def ood_filter(args, output_root):
             number=idx_
         )
 
+def fewshot_cov(args, output_root):
+    """ Use sam and fewshot (covariance) to classify masks.
+    Params
+    :args -> parameters from bash.
+    :output_root (str) -> output folder location.
+    """
+    # STEP 1: create data loaders
+    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
+    # save new gt into a separate json file
+    if not os.path.exists(output_root):
+        os.makedirs(output_root)
+    # save gt
+    save_loader_to_json(test_loader, output_root, filename="test")
+
 def selective_search(args, output_root):
     """ Run selective search (ss) and stores the results.
     Params
@@ -355,3 +369,6 @@ if __name__ == '__main__':
         few_shot(args, is_single_class=False, output_root=output_root)
     elif args.method == Constants_MainMethod.FEWSHOT_OOD:
         ood_filter(args, output_root)
+
+    elif args.method == Constants_MainMethod.FEWSHOT_COVARIANCE:
+        fewshot_cov(args, output_root)
