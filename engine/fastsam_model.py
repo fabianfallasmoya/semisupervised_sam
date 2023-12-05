@@ -39,7 +39,7 @@ class FASTSAM:
         # and 0.92 and 0.96 for score_thresh
         # SAM embeddings
         mask_generator_embeddings = SamAutomaticMaskGenerator(
-            model=self.model,
+            model=self.model_embeddings,
             points_per_side=32,
             # pred_iou_thresh=0.9,
             # stability_score_thresh=0.96,
