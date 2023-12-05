@@ -1,6 +1,7 @@
 from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 from PIL import Image
 
+import segment_anything as sam
 import numpy as np
 import torch
 import torchvision
@@ -8,6 +9,7 @@ import torchvision
 class MobileSAM:
 
     def __init__(self, args) -> None:
+        # Configuration of MobileSAM for object proposals masks
         self.checkpoint = "weights/mobile_sam.pt"
         self.model_type = "vit_t"
         
@@ -23,6 +25,18 @@ class MobileSAM:
         # features shape: ([1, 256, 64, 64]), we keep 256
         self.features_size = predictor.features.shape[1]
         predictor.reset_image()
+
+        # ------------------------------------------------
+        # Config for SAM model for the embeddings
+        if args.sam_model == 'b':
+            self.checkpoint_embeddings = "weights/sam_vit_b_01ec64.pth"
+            self.model_type_embeddings = "vit_b"
+        elif args.sam_model == 'h':
+            self.checkpoint_embeddings = "weights/sam_vit_h_4b8939.pth"
+            self.model_type_embeddings = "vit_h"
+        else:
+            RuntimeError("No sam config found")
+        self.model_embeddings = sam.sam_model_registry[self.model_type_embeddings](checkpoint=self.checkpoint_embeddings).to(args.device)
 
     def load_simple_mask(self):
         #There are several tunable parameters in automatic mask generation that control 
@@ -47,6 +61,19 @@ class MobileSAM:
             output_mode="coco_rle",
         )
         self.mask_generator = mask_generator_
+
+        # SAM embeddings
+        mask_generator_embeddings = sam.SamAutomaticMaskGenerator(
+            model=self.model,
+            points_per_side=32,
+            # pred_iou_thresh=0.9,
+            # stability_score_thresh=0.96,
+            # crop_n_layers=1, default:0
+            # crop_n_points_downscale_factor=1,default:1
+            min_mask_region_area=100,  # Requires open-cv to run post-processing
+            output_mode="coco_rle",
+        )
+        self.mask_generator_embeddings = mask_generator_embeddings
 
     def get_unlabeled_samples(self, 
             batch, idx, transform, use_sam_embeddings
@@ -93,13 +120,13 @@ class MobileSAM:
         Return
         :torch of the embeddings from SAM.
         """
-        self.mask_generator.predictor.set_image(img)
-        embeddings = self.mask_generator.predictor.features
+        self.mask_generator_embeddings.predictor.set_image(img)
+        embeddings = self.mask_generator_embeddings.predictor.features
 
         with torch.no_grad():
             _pool = torch.nn.AdaptiveAvgPool2d((1, 1))
             avg_pooled = _pool(embeddings).view(embeddings.size(0), -1)
-        self.mask_generator.predictor.reset_image()
+        self.mask_generator_embeddings.predictor.reset_image()
         return avg_pooled
 
     def get_features(self, img):
@@ -111,6 +138,6 @@ class MobileSAM:
         Return
         :torch of the embeddings from SAM.
         """
-        self.mask_generator.predictor.set_image(img)
-        embeddings = self.mask_generator.predictor.features
+        self.mask_generator_embeddings.predictor.set_image(img)
+        embeddings = self.mask_generator_embeddings.predictor.features
         return embeddings
