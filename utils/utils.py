@@ -91,7 +91,8 @@ def get_parameters():
     parser.add_argument('--seed', type=int, default=None)
     parser.add_argument('--sam-model', type=str, default=None)
     parser.add_argument('--device', type=str, default="cuda")
-    parser.add_argument('--sam-mode', type=str, default="sam")
+    # Possible values for sam-proposal to generate object proposals, 'sam' 'semanticsam' 'mobilesam' 'fastsam'
+    parser.add_argument('--sam-proposal', type=str, default="sam")
 
     return parser.parse_args()
 
