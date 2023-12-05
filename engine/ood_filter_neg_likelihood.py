@@ -23,19 +23,21 @@ class OOD_filter_neg_likelihood:
         timm_pretrained=True, 
         num_classes=1,
         sam_model=None,
-        use_sam_embeddings=False):
+        use_sam_embeddings=False,
+        device="cpu"):
         """ OOD filter constructor
         Params
         :timm_model (str) -> model name from timm library
         :timm_pretrained (bool) -> whether to load a pretrained model or not
         :num_classes (int) -> number of classes in the ground truth
         """
+        self.device=device
         self.num_classes = num_classes
         if not use_sam_embeddings:
             # create a model for feature extraction
             feature_extractor = MyFeatureExtractor(
                 timm_model, timm_pretrained, num_classes
-            ).to('cuda')
+            ).to(self.device)
             self.feature_extractor = feature_extractor
         else:
             self.feature_extractor = sam_model
@@ -57,6 +59,8 @@ class OOD_filter_neg_likelihood:
         self.trans_norm = trans_norm
         self.use_sam_embeddings = use_sam_embeddings
         self.power_transf = PowerTransformer(method='yeo-johnson', standardize=True)
+
+
         # self.mean = 0
         # self.std = 0
 
@@ -396,7 +400,7 @@ class OOD_filter_neg_likelihood:
         else:
             with torch.no_grad():
                 for img in images:
-                    t_temp = self.feature_extractor(img.unsqueeze(dim=0).to('cuda'))
+                    t_temp = self.feature_extractor(img.unsqueeze(dim=0).to(self.device))
                     features.append(t_temp.squeeze().cpu())
         return features
 
