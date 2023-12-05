@@ -35,8 +35,6 @@ class BDCSPN(FewShot):
         """
         super().__init__(*args, **kwargs)
 
-        self.mean = None
-        self.std = None
         self.num_samples = None
         self.is_single_class = is_single_class
         self.use_sam_embeddings = use_sam_embeddings
@@ -80,7 +78,7 @@ class BDCSPN(FewShot):
         if support_labels is None:
             y_labels = np.zeros(len(support_images))
         else:
-            y_labels = np.zeros(len(support_images))
+            y_labels = np.array(support_labels)
         support_labels = torch.Tensor(y_labels)
 
         # get feature maps from the images
