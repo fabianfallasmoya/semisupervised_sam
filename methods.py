@@ -5,6 +5,7 @@ import cv2
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 from engine.fastsam_model import FASTSAM
 from engine.mobilesam_model import MobileSAM
+#from engine.semantic_sam import SemanticSAM
 
 try:
     from apex import amp
@@ -63,8 +64,18 @@ def sam_simple(args, output_root):
     save_loader_to_json(full_label_l, output_root, filename="full_label")
     
     # STEP 2: create an SAM instance
-    sam = SAM(args)
-    sam.load_simple_mask()
+    if args.sam_proposal == "mobilesam":
+        sam = MobileSAM(args)
+        sam.load_simple_mask()
+    elif args.sam_proposal == "fastsam":
+        sam = FASTSAM(args)
+        sam.load_simple_mask()
+    #elif args.sam_proposal == "semanticsam":
+    #    sam = SemanticSAM(args)
+    #    sam.load_simple_mask()
+    else:
+        sam = SAM(args)
+        sam.load_simple_mask()
 
     # STEP 3: classify these inferences using the few-shot model
     # and SAM predictions.
@@ -98,12 +109,15 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     save_loader_to_json(test_loader, output_root, filename="test")
 
     # STEP 2: create an SAM instance
-    if args.sam_mode == "mobilesam":
+    if args.sam_proposal == "mobilesam":
         sam = MobileSAM(args)
         sam.load_simple_mask()
-    elif args.sam_mode == "fastsam":
+    elif args.sam_proposal == "fastsam":
         sam = FASTSAM(args)
         sam.load_simple_mask()
+    #elif args.sam_proposal == "semanticsam":
+    #    sam = SemanticSAM(args)
+    #    sam.load_simple_mask()
     else:
         sam = SAM(args)
         sam.load_simple_mask()
@@ -251,8 +265,18 @@ def ood_filter(args, output_root):
 
     # STEP 2: run the ood filter using inferences from SAM
     # sam instance - default values of the model
-    sam = SAM(args)
-    sam.load_simple_mask()
+    if args.sam_proposal == "mobilesam":
+        sam = MobileSAM(args)
+        sam.load_simple_mask()
+    elif args.sam_proposal == "fastsam":
+        sam = FASTSAM(args)
+        sam.load_simple_mask()
+    #elif args.sam_proposal == "semanticsam":
+    #    sam = SemanticSAM(args)
+    #    sam.load_simple_mask()
+    else:
+        sam = SAM(args)
+        sam.load_simple_mask()
 
     # instance the main class and instance the timm model
     ood_filter_neg_likelihood = OOD_filter_neg_likelihood(
@@ -385,12 +409,15 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
 
     # sam instance - default values of the model
     # STEP 2: create an SAM instance
-    if args.sam_mode == "mobilesam":
+    if args.sam_proposal == "mobilesam":
         sam = MobileSAM(args)
         sam.load_simple_mask()
-    elif args.sam_mode == "fastsam":
+    elif args.sam_proposal == "fastsam":
         sam = FASTSAM(args)
         sam.load_simple_mask()
+    #elif args.sam_proposal == "semanticsam":
+    #    sam = SemanticSAM(args)
+    #    sam.load_simple_mask()
     else:
         sam = SAM(args)
         sam.load_simple_mask()
@@ -423,7 +450,7 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
             output_root, method=args.method,
         )
     else:
-        print("No implemented multiple class mahalanobis!")
+        print("No implemented for multiple class mahalanobis!")
 
 if __name__ == '__main__':
     args = get_parameters()
@@ -434,9 +461,9 @@ if __name__ == '__main__':
         seed_everything(args.seed)
 
     if args.use_sam_embeddings:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed@{args.sam_mode}"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed@{args.sam_proposal}"
     else:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}@{args.sam_mode}"
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}@{args.sam_proposal}"
     if args.method == Constants_MainMethod.SELECTIVE_SEARCH:
         output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         selective_search(args, output_root)
