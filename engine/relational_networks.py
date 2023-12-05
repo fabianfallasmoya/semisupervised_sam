@@ -1,6 +1,6 @@
-from typing import List
-from typing import Optional
+from typing import List, Optional
 from torch import Tensor, nn
+from torchvision import transforms
 
 from .fewshot_model import FewShot
 from .fewshot_utils import compute_prototypes
@@ -59,6 +59,11 @@ class RelationNetworks(FewShot):
         self.num_samples = None
         self.is_single_class = is_single_class
         self.use_sam_embeddings = use_sam_embeddings
+        self.preprocess = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.Resize((124, 124)),
+            transforms.ToTensor()
+        ])
 
         # Here we build the relation module that will output the relation score for each
         # (query, prototype) pair. See the function docstring for more details.
@@ -101,11 +106,13 @@ class RelationNetworks(FewShot):
         if support_labels is None:
             y_labels = np.zeros(len(support_images))
         else:
-            y_labels = np.zeros(len(support_images))
+            y_labels = np.array(support_labels)
 
         #---------------------------------------
         # get feature maps from the images
         for img in support_images:
+            # Resize to a normalized size to have normalized feature maps
+            img = self.preprocess(img)
             if self.use_sam_embeddings:
                 t_temp = self.get_embeddings_sam(img)
             else:
@@ -117,8 +124,8 @@ class RelationNetworks(FewShot):
         if self.is_single_class:
             print("Not implemented!")
         else:
-            support_labels = torch.Tensor(support_labels)
-            prototypes = compute_prototypes(support_features, support_labels)
+            y_labels = torch.Tensor(y_labels)
+            prototypes = compute_prototypes(support_features, y_labels)
         self.prototypes = prototypes.to(self.device)
 
     def forward(self, query_image: Tensor) -> Tensor:
@@ -129,6 +136,8 @@ class RelationNetworks(FewShot):
         score. Finally, the classification vector of the query is its relation score to each class
         prototype.
         """
+        # Resize to a normalized size to have normalized feature maps
+        query_image = self.preprocess(query_image)
         if self.use_sam_embeddings:
             z_query = self.get_embeddings_sam(query_image)
         else:
