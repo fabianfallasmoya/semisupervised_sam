@@ -74,7 +74,7 @@ class PrototypicalNetworks(FewShot):
         if support_labels is None:
             y_labels = np.zeros(len(support_images))
         else:
-            y_labels = np.zeros(len(support_images))
+            y_labels = np.array(support_labels)
         imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
             support_images, y_labels, 
             train_size = 0.6,
