@@ -22,6 +22,7 @@ class Constants_MainMethod:
     FEWSHOT_2_CLASSES_MATCHING = 'fewshotMatching'
     FEWSHOT_2_CLASSES_BDCSPN = 'fewshotBDCSPN'
     FEWSHOT_MAHALANOBIS = 'fewshotMahalanobis'
+    FEWSHOT_2_CLASSES_PTMAP = 'fewshotPTMap'
     SELECTIVE_SEARCH = 'ss'
 
 def add_bool_arg(parser, name, default=False, help=''):

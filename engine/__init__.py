@@ -10,4 +10,5 @@ from .sam_model import *
 from .fastsam_model import *
 from .mobilesam_model import *
 from .mahalanobis_filter import *
+from .ptmap import *
 #from .semantic_sam import *

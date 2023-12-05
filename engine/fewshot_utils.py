@@ -49,3 +49,15 @@ def compute_prototypes_singleclass(support_features: Tensor) -> Tensor:
     """
     # Prototype i is the mean of all instances of features corresponding to labels == i
     return support_features.mean(0)
+
+def power_transform(features: Tensor, power_factor: float) -> Tensor:
+    """
+    Apply power transform to features.
+    Args:
+        features: input features of shape (n_features, feature_dimension)
+        power_factor: power to apply to features
+
+    Returns:
+        Tensor: shape (n_features, feature_dimension), power transformed features.
+    """
+    return (features.relu() + 1e-6).pow(power_factor)

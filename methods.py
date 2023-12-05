@@ -41,6 +41,7 @@ from engine.prototypical_networks import PrototypicalNetworks
 from engine.relational_networks import RelationNetworks
 from engine.matching_networks import MatchingNetworks
 from engine.bdcspn import BDCSPN
+from engine.ptmap import PTMAP
 from engine.ood_filter_neg_likelihood import OOD_filter_neg_likelihood
 from engine.mahalanobis_filter import MahalanobisFilter
 #------------------------------------------------------------------------------------------------
@@ -160,6 +161,14 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
             use_sam_embeddings=args.use_sam_embeddings,
             backbone=feature_extractor, 
             use_softmax=False,
+        ).to(args.device)
+    elif fewshot_method == Constants_MainMethod.FEWSHOT_2_CLASSES_PTMAP:
+        fs_model = PTMAP(
+            is_single_class=is_single_class,
+            use_sam_embeddings=args.use_sam_embeddings,
+            backbone=feature_extractor, 
+            use_softmax=False,
+            device=args.device
         ).to(args.device)
     else:
         fs_model = PrototypicalNetworks(
@@ -481,6 +490,8 @@ if __name__ == '__main__':
     elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_MATCHING:
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_BDCSPN:
+        few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
+    elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_PTMAP:
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_MAHALANOBIS:
         mahalanobis_filter(args, is_single_class=True, output_root=output_root)
