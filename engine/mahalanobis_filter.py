@@ -6,7 +6,8 @@ from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.covariance import LedoitWolf
+from sklearn.covariance import LedoitWolf, empirical_covariance, OAS
+import statistics
 
 class MahalanobisFilter:
 
@@ -60,7 +61,12 @@ class MahalanobisFilter:
 
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
-        self.inv_cov = torch.Tensor(LedoitWolf().fit(embeddings.cpu()).precision_,device="cpu")
+        ## Using LedoitWolf to estimate the covariance matrix
+        #self.inv_cov = torch.Tensor(np.linalg.pinv(LedoitWolf().fit(embeddings.cpu()).covariance_), device=self.device)
+        ## Using OAS to estimate the covariance matrix, assume the data is Gaussian
+        #self.inv_cov = torch.Tensor(np.linalg.pinv(OAS().fit(embeddings.cpu()).covariance_), device=self.device)
+        ## Using pseudo inverse covariace matrix
+        self.inv_cov = torch.Tensor(np.linalg.pinv(empirical_covariance(embeddings.cpu())), device=self.device)
 
     @staticmethod
     def mahalanobis_distance(
@@ -85,12 +91,16 @@ class MahalanobisFilter:
             mean = mean.unsqueeze(0)
         x_mu = values - mean  # batch x features
         # Same as dist = x_mu.t() * inv_covariance * x_mu batch wise
+        # x_mu shape (samples x embedding size), inv_covariance (embedding size x embedding size), dist shape ()
         dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
         return dist.sqrt()
     
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
-        print(distances)
+        mean_value = torch.mean(distances).item()
+        std_deviation = torch.std(distances).item()
+        print("Mean predicted:", mean_value)
+        print("Standard Deviation predicted:", std_deviation)
         return distances
     
     def run_filter(self,
@@ -127,14 +137,14 @@ class MahalanobisFilter:
 
         imgs_1, imgs_2, _, _ = train_test_split(
             feature_maps_list, labels,
-            train_size = 0.6,
+            train_size = 0.9,
             shuffle=True # shuffle the data before splitting
         )
 
         # 2. Calculating the mean prototype for the labeled data
         #----------------------------------------------------------------
-        support_features_imgs_1 = torch.stack(imgs_1)
-        support_features_imgs_2 = torch.stack(imgs_2)
+        #support_features_imgs_1 = torch.stack(imgs_1)
+        #support_features_imgs_2 = torch.stack(imgs_2)
         support_features = torch.stack(feature_maps_list)
 
         # 3. Calculating the sigma (covariance matrix), the distances 
@@ -143,14 +153,19 @@ class MahalanobisFilter:
         if self.is_single_class:
             #self.fit(support_features_imgs_1)
             self.fit(support_features)
-
             #distances = self.predict(support_features_imgs_2)
             distances = self.predict(support_features)
 
+            #mean_value = torch.mean(distances).item()
+            #std_deviation = torch.std(distances).item()
+
+            #print("Mean calculate:", mean_value)
+            #print("Standard Deviation calculate:", std_deviation)
             self.threshold = max(distances).item()
+            #print("threshold:", self.threshold)
 
         # go through each batch unlabeled
-        likelihoods_all = 0
+        distances_all = 0
 
         # keep track of the img id for every sample created by sam
         imgs_ids = []
@@ -187,14 +202,14 @@ class MahalanobisFilter:
 
             # accumulate
             if (batch_num == 0):
-                likelihoods_all = support_set_distances
+                distances_all = support_set_distances
             else:
-                likelihoods_all = torch.cat((likelihoods_all, support_set_distances), 0)
+                distances_all = torch.cat((distances_all, support_set_distances), 0)
 
         # transform data 
         scores = []
-        for j in range(0, likelihoods_all.shape[0]):
-            scores += [likelihoods_all[j].item()]
+        for j in range(0, distances_all.shape[0]):
+            scores += [distances_all[j].item()]
         scores = np.array(scores).reshape((len(scores),1))
 
         limit = self.threshold 
