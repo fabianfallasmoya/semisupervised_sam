@@ -292,7 +292,8 @@ def ood_filter(args, output_root):
         timm_model=args.timm_model, 
         timm_pretrained=args.load_pretrained,
         sam_model=sam,
-        use_sam_embeddings=args.use_sam_embeddings
+        use_sam_embeddings=args.use_sam_embeddings,
+        device=args.device
     )
 
     # #------------------------------------------------
