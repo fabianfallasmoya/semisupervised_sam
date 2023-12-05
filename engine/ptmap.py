@@ -194,8 +194,8 @@ class PTMAP(FewShot):
         distances_to_prototypes = (
             torch.cdist(query_features, self.prototypes) ** 2
         )  # [Nq, K]
-        if torch.isnan(distances_to_prototypes).any().item():
-            print("distances_to_prototypes", query_features.shape)
+        #if torch.isnan(distances_to_prototypes).any().item():
+        #    print("distances_to_prototypes", query_features.shape)
         soft_assignments = self.compute_optimal_transport(
             distances_to_prototypes, epsilon=1e-6
         )
