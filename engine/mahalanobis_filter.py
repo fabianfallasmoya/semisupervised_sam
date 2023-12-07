@@ -59,7 +59,9 @@ class MahalanobisFilter:
 
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
+        # Covariance matrix
         cov_matrix = torch.cov(embeddings.T)
+        # Pseudo inverse of the covariance matrix
         inv_cov = torch.pinverse(cov_matrix)
         self.inv_cov = inv_cov
 
@@ -87,10 +89,12 @@ class MahalanobisFilter:
         x_mu = values - mean  # batch x features
         # Same as dist = x_mu.t() * inv_covariance * x_mu batch wise
         # x_mu shape (samples x embedding size), inv_covariance (embedding size x embedding size), dist shape ()
-        dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
+        #dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
+        dist = torch.sqrt(torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T)))
+
         #print("x_mu:", x_mu)
         #print("covariance: ", inv_covariance)
-        return dist#.sqrt()
+        return dist #.sqrt()
     
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
