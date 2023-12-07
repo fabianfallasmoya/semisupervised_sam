@@ -6,8 +6,6 @@ from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.covariance import LedoitWolf, empirical_covariance, OAS
-import statistics
 
 class MahalanobisFilter:
 
@@ -25,7 +23,7 @@ class MahalanobisFilter:
             i.e. if its output for a given image is not a 1-dim tensor.
         """
         self.mean = None
-        self.covariance_matrix = None
+        self.inv_cov = None
         self.device = device
         self.num_samples = None
         self.num_classes = num_classes
@@ -61,12 +59,9 @@ class MahalanobisFilter:
 
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
-        ## Using LedoitWolf to estimate the covariance matrix
-        #self.inv_cov = torch.Tensor(np.linalg.pinv(LedoitWolf().fit(embeddings.cpu()).covariance_), device=self.device)
-        ## Using OAS to estimate the covariance matrix, assume the data is Gaussian
-        #self.inv_cov = torch.Tensor(np.linalg.pinv(OAS().fit(embeddings.cpu()).covariance_), device=self.device)
-        ## Using pseudo inverse covariace matrix
-        self.inv_cov = torch.Tensor(np.linalg.pinv(empirical_covariance(embeddings.cpu())), device=self.device)
+        cov_matrix = torch.cov(embeddings.T)
+        inv_cov = torch.pinverse(cov_matrix)
+        self.inv_cov = inv_cov
 
     @staticmethod
     def mahalanobis_distance(
@@ -93,12 +88,15 @@ class MahalanobisFilter:
         # Same as dist = x_mu.t() * inv_covariance * x_mu batch wise
         # x_mu shape (samples x embedding size), inv_covariance (embedding size x embedding size), dist shape ()
         dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
+        #print("x_mu:", x_mu)
+        #print("covariance: ", inv_covariance)
         return dist.sqrt()
     
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
         mean_value = torch.mean(distances).item()
         std_deviation = torch.std(distances).item()
+        print(distances)
         print("Mean predicted:", mean_value)
         print("Standard Deviation predicted:", std_deviation)
         return distances
@@ -123,12 +121,13 @@ class MahalanobisFilter:
                 )
                 labeled_imgs += imgs_f
                 labeled_labels += labels_f
-
+        #print("Len labeled imgs: ", len(labeled_imgs))
         # labels start from index 1 to n, translate to start from 0 to n.
         labels = [int(i-1) for i in labeled_labels]
 
         # get all features maps using: the extractor + the imgs
         feature_maps_list = self.get_all_features(labeled_imgs)
+        #print("feature_maps_list imgs: ", feature_maps_list)
         #----------------------------------------------------------------
         if self.is_single_class:
             labels = np.zeros(len(feature_maps_list))
@@ -146,6 +145,8 @@ class MahalanobisFilter:
         #support_features_imgs_1 = torch.stack(imgs_1)
         #support_features_imgs_2 = torch.stack(imgs_2)
         support_features = torch.stack(feature_maps_list)
+        #print("Support features mean: ", support_features.mean())
+        #print("Features size: ", support_features.shape)
 
         # 3. Calculating the sigma (covariance matrix), the distances 
         # with respect of the support features and get the threshold
@@ -155,10 +156,9 @@ class MahalanobisFilter:
             self.fit(support_features)
             #distances = self.predict(support_features_imgs_2)
             distances = self.predict(support_features)
-
-            #mean_value = torch.mean(distances).item()
-            #std_deviation = torch.std(distances).item()
-
+            mean_value = torch.mean(distances).item()
+            std_deviation = torch.std(distances).item()
+            #print("distances: ", distances)
             #print("Mean calculate:", mean_value)
             #print("Standard Deviation calculate:", std_deviation)
             self.threshold = max(distances).item()
