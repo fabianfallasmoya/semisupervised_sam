@@ -82,15 +82,15 @@ class MahalanobisFilter:
         assert mean.shape[-1] == inv_covariance.shape[0]
         assert inv_covariance.shape[0] == inv_covariance.shape[1]
 
-        if mean.dim() == 1:  # Distribution mean.
-            mean = mean.unsqueeze(0)
+        #if mean.dim() == 1:  # Distribution mean.
+        #    mean = mean.unsqueeze(0)
         x_mu = values - mean  # batch x features
         # Same as dist = x_mu.t() * inv_covariance * x_mu batch wise
         # x_mu shape (samples x embedding size), inv_covariance (embedding size x embedding size), dist shape ()
         dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
         #print("x_mu:", x_mu)
         #print("covariance: ", inv_covariance)
-        return dist.sqrt()
+        return dist#.sqrt()
     
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
