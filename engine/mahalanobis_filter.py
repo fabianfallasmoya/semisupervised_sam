@@ -90,8 +90,8 @@ class MahalanobisFilter:
         # Same as dist = x_mu.t() * inv_covariance * x_mu batch wise
         # x_mu shape (samples x embedding size), inv_covariance (embedding size x embedding size), dist shape ()
         #dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
-        dist = torch.sqrt(torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T)))
-
+        #dist = torch.sqrt(torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T)))
+        dist = torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T))
         #print("x_mu:", x_mu)
         #print("covariance: ", inv_covariance)
         return dist #.sqrt()
