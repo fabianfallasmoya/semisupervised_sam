@@ -103,12 +103,12 @@ class OOD_filter_neg_likelihood:
         feature_maps_list = self.get_all_features(labeled_imgs)
 
         #----------------------------------------------------------------
-        y_dumpy = np.zeros(len(feature_maps_list))
-        imgs_1, imgs_2, _, _ = train_test_split(
-            feature_maps_list, y_dumpy, 
-            train_size = 0.6,
-            shuffle=True # shuffle the data before splitting
-        )
+        #y_dumpy = np.zeros(len(feature_maps_list))
+        #imgs_1, imgs_2, _, _ = train_test_split(
+        #    feature_maps_list, y_dumpy, 
+        #    train_size = 0.6,
+        #    shuffle=True # shuffle the data before splitting
+        #)
         #----------------------------------------------------------------
 
         # 2. Calculating the histograms from the labeled data
@@ -117,14 +117,16 @@ class OOD_filter_neg_likelihood:
         (
             histograms_labeled,    # e.g. 512 x 15
             buckets_labeled        # e.g. 512 x 15
-        ) = self.calculate_hist_dataset(imgs_1, ood_hist_bins) #
+        ) = self.calculate_hist_dataset(feature_maps_list, ood_hist_bins) #
+        #) = self.calculate_hist_dataset(imgs_1, ood_hist_bins) #
 
 
         # get likelihoods
         likelihoods = self.get_likelihoods(
             histograms_labeled,    # e.g. 512 x 15
             buckets_labeled,       # e.g. 512 x 15
-            imgs_2
+            feature_maps_list
+            #imgs_2
         )
 
         # transfor the distribution to a gaussian one

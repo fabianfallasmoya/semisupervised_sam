@@ -28,7 +28,7 @@
                 "--batch-size-labeled","1",
                 "--batch-size-unlabeled", "2",
                 "--ood-labeled-samples", "2",
-                "--ood-unlabeled-samples", "100",
+                "--ood-unlabeled-samples", "10",
                 "--aug-method","rand_augmentation",
                 "--img-resolution", "1024",
                 "--new-sample-size", "256", 
@@ -40,7 +40,7 @@
                 "--ood-thresh", "0.8",
                 "--ood-histogram-bins", "15", //
                 "--use-sam-embeddings", "0",
-                "--method", "samAlone", //"fewshotRelationalNetwork",//"fewshotMahalanobis", //"fewshotMatching", //ss samAlone fewshot1 fewshot2 fewshotOOD 
+                "--method", "fewshotOOD", //"fewshotRelationalNetwork",//"fewshotMahalanobis", //"fewshotMatching", //ss samAlone fewshot1 fewshot2 fewshotOOD 
                 "--device", "cuda",
                 "--sam-proposal", "sam",
             ]
