@@ -21,7 +21,6 @@ def get_batch_prototypes(
     :imgs (tensor) -> all images from the bounding boxes.
     :labels (tensor) -> labels of the bounding boxes.
     """
-    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
     imgs = []
     labels = []
     
@@ -33,6 +32,7 @@ def get_batch_prototypes(
         for idx in list(range(batch[1]['img_idx'].numel())):
             # get background samples
             if get_background_samples:
+                ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
                 imgs_b, labels_b = get_background(
                     batch, idx, trans_norm, ss, num_classes,
                     use_sam_embeddings=use_sam_embeddings

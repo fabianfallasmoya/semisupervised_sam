@@ -75,15 +75,15 @@ class PrototypicalNetworks(FewShot):
             y_labels = np.zeros(len(support_images))
         else:
             y_labels = np.array(support_labels)
-        imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
-            support_images, y_labels, 
-            train_size = 0.6,
-            shuffle=True # shuffle the data before splitting
-        )
+        #imgs_1, imgs_2, lbl_1, lbl_2 = train_test_split(
+        #    support_images, y_labels, 
+        #    train_size = 0.6,
+        #    shuffle=True # shuffle the data before splitting
+        #)
         #---------------------------------------
         
         # get feature maps from the images
-        for img in imgs_1:
+        for img in support_images:
             if self.use_sam_embeddings:
                 t_temp = self.get_embeddings_sam(img)
             else:
@@ -96,13 +96,13 @@ class PrototypicalNetworks(FewShot):
             prototypes = compute_prototypes_singleclass(support_features)
             prototypes = prototypes.unsqueeze(dim=0) # 2D tensor
         else:
-            support_labels = torch.Tensor(lbl_1)
+            support_labels = torch.Tensor(y_labels)
             prototypes = compute_prototypes(support_features, support_labels)
         self.prototypes = prototypes.to(self.device)
 
         #---------------------------------------
         if self.is_single_class:
-            self._calculate_statistics(imgs_2)
+            self._calculate_statistics(support_images)
         #---------------------------------------
 
     def _calculate_statistics(
