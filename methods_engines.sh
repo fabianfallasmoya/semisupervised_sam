@@ -15,8 +15,8 @@ OOD_THRESH=0.8
 OOD_BINS=15
 
 DEVICE="cuda"
-METHODS=( 'fewshot1' 'fewshotOOD' 'fewshotRelationalNetwork' 'fewshotMatching' 'fewshotMahalanobis' 'fewshotBDCSPN')
-OBJECT_PROPOSAL_SAM=('sam' 'semanticsam' 'mobilesam' 'fastsam')
+METHODS=( 'fewshot1' 'fewshotOOD' 'fewshotMatching' 'fewshotMahalanobis' 'fewshotBDCSPN') #'fewshotRelationalNetwork'
+OBJECT_PROPOSAL_SAM=('sam' 'mobilesam' 'fastsam')
 LABELED_NUMBER=( '1' '2' '3' '4' '5' '6' '7' '8' '9' '10' '11' '12' '13' '14' '15')
 MODELS=( 'swinv2_base_window8_256.ms_in1k' 'tf_efficientnet_l2.ns_jft_in1k_475')
 
