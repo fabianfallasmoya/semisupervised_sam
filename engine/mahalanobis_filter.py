@@ -6,6 +6,8 @@ from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
+from sklearn.covariance import LedoitWolf, GraphicalLasso, ShrunkCovariance
+from scipy.linalg import inv
 
 class MahalanobisFilter:
 
@@ -60,10 +62,8 @@ class MahalanobisFilter:
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
         # Covariance matrix
-        cov_matrix = torch.cov(embeddings.T)
-        # Pseudo inverse of the covariance matrix
-        inv_cov = torch.pinverse(cov_matrix)
-        self.inv_cov = inv_cov
+        covariance_matrix = ShrunkCovariance().fit(embeddings).covariance_
+        self.inv_cov = torch.tensor(covariance_matrix, dtype=torch.float) #torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float)
 
     @staticmethod
     def mahalanobis_distance(
@@ -94,7 +94,7 @@ class MahalanobisFilter:
         dist = torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T))
         #print("x_mu:", x_mu)
         #print("covariance: ", inv_covariance)
-        return dist #.sqrt()
+        return dist.sqrt()
     
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
