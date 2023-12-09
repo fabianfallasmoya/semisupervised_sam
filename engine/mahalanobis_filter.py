@@ -6,11 +6,8 @@ from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.covariance import LedoitWolf, GraphicalLasso, ShrunkCovariance, OAS
-from scipy.linalg import inv
-
-import numpy as np
 from numpy import linalg as la
+from sklearn.covariance import LedoitWolf
 
 class MahalanobisFilter:
 
@@ -39,7 +36,7 @@ class MahalanobisFilter:
         if not use_sam_embeddings:
             # create a model for feature extraction
             feature_extractor = MyFeatureExtractor(
-                timm_model, timm_pretrained, num_classes
+                timm_model, timm_pretrained, num_classes #256, use_fc=True
             ).to(self.device)
             self.feature_extractor = feature_extractor
         else:
@@ -62,8 +59,10 @@ class MahalanobisFilter:
         self.trans_norm = trans_norm
         self.use_sam_embeddings = use_sam_embeddings
 
-
-
+    def is_positive_semidefinite(self, covariance_matrix):
+        eigenvalues, _ = np.linalg.eig(covariance_matrix)
+        positive_semidefinite = all(eigenvalues >= 0)
+        return positive_semidefinite
 
     def nearestPD(self, A):
         """Find the nearest positive-definite matrix to input
@@ -107,8 +106,7 @@ class MahalanobisFilter:
             k += 1
 
         return A3
-
-
+        
     def isPD(self, B):
         """Returns true when input is positive-definite, via Cholesky"""
         try:
@@ -116,21 +114,61 @@ class MahalanobisFilter:
             return True
         except la.LinAlgError:
             return False
-
+        
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
         # Covariance matrix
         #covariance_matrix = ShrunkCovariance().fit(embeddings).covariance_
         #covariance_matrix = OAS().fit(embeddings).covariance_
         #self.inv_cov = torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float) #torch.tensor(covariance_matrix, dtype=torch.float, device=self.device) #torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float)
-        covariance_matrix = np.cov(embeddings, rowvar=False)
-        inv_cov = np.linalg.pinv(covariance_matrix)
+        #covariance_matrix = np.cov(embeddings, rowvar=False)
+        #covariance_matrix = torch.matmul(embeddings.t(), embeddings) / (embeddings.size(0) - 1)
+        self.ledoitwolf = LedoitWolf()
+        self.ledoitwolf.fit(embeddings.detach().numpy())
+        covariance_matrix = self.ledoitwolf.precision_
+        print("covariance_matrix: ", covariance_matrix.shape)
 
-        if not np.all(np.linalg.eigvals(inv_cov) > 0):
-            inv_cov = self.nearestPD(inv_cov)
-            print("Positive defined ")
-        self.inv_cov = torch.tensor(inv_cov, dtype=torch.float)
+        #covariance_matrix = torch.Tensor(embeddings.cpu()).t().mm(torch.Tensor(embeddings.cpu())).cov()
+        #print(covariance_matrix)
+        #if not np.all(np.linalg.eigvals(covariance_matrix) > 0):
+        #    covariance_matrix = self.higham_regularization(covariance_matrix)
+            #inv_cov = self.higham_regularization(inv_cov)
+            ##inv_cov = self.logarithmic_transform(inv_cov)
+            #inv_cov = self.diagonal_loading(inv_cov)
+            ##inv_cov = self.cholesky_decomposition(inv_cov)
+        #    print(covariance_matrix)
+        #    print("Positive defined ")
+        #if self.is_pos_semidef(covariance_matrix.detach().numpy()):
+        #    print("Pos semidef")
+        #covariance_matrix = self.get_near_psd(covariance_matrix.detach().numpy())
+        #covariance_matrix = np.array(self.nearPSD(covariance_matrix.detach().numpy()))
 
+        #if not self.is_positive_semidefinite(covariance_matrix.detach().numpy()):
+        #    print("Covariance Matrix is Positive Semidefinite: ", self.is_positive_semidefinite(covariance_matrix.detach().numpy()))
+        #    are_equal = np.array_equal(self.nearestPD(covariance_matrix.detach().numpy()), covariance_matrix.detach().numpy())
+        #    print("Are equal nearest Positive definite: ", are_equal)
+        #
+        #    covariance_matrix = self.nearestPD(covariance_matrix.detach().numpy())
+
+        # Calculate determinant
+        #det = np.linalg.det(covariance_matrix)
+        # Check if the determinant is non-zero
+        #if det != 0:
+        #    print("The matrix is non-singular (invertible).")
+        #    covariance_matrix = torch.Tensor(covariance_matrix)
+        #    self.inv_cov = covariance_matrix
+        #else:
+        #    print("The matrix is singular.")
+        #    covariance_matrix = torch.Tensor(covariance_matrix)
+        #    self.inv_cov =  torch.pinverse(covariance_matrix)
+        #    det = np.linalg.det(covariance_matrix)
+        #    print("Determinant: ", det)
+            
+        
+        #self.inv_cov  = np.linalg.pinv(covariance_matrix)
+        #self.inv_cov = torch.pinverse(covariance_matrix)
+        self.inv_cov = torch.tensor(covariance_matrix, dtype=torch.float)
+        
 
     @staticmethod
     def mahalanobis_distance(
@@ -162,9 +200,14 @@ class MahalanobisFilter:
         #print("x_mu:", x_mu)
         #print("covariance: ", inv_covariance)
         return dist.sqrt()
+        #return self.ledoitwolf.
+
+    def mahalanobis_distance_v2(self, X):
+        return torch.tensor(self.ledoitwolf.mahalanobis(X))
     
     def predict(self, embeddings):
-        distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
+        #distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
+        distances = self.mahalanobis_distance_v2(embeddings)
         mean_value = torch.mean(distances).item()
         std_deviation = torch.std(distances).item()
         print(distances)
