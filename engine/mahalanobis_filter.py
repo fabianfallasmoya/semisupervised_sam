@@ -36,7 +36,7 @@ class MahalanobisFilter:
         if not use_sam_embeddings:
             # create a model for feature extraction
             feature_extractor = MyFeatureExtractor(
-                timm_model, timm_pretrained, num_classes #256, use_fc=True
+                timm_model, timm_pretrained, num_classes #128, use_fc=True
             ).to(self.device)
             self.feature_extractor = feature_extractor
         else:
@@ -63,57 +63,6 @@ class MahalanobisFilter:
         eigenvalues, _ = np.linalg.eig(covariance_matrix)
         positive_semidefinite = all(eigenvalues >= 0)
         return positive_semidefinite
-
-    def nearestPD(self, A):
-        """Find the nearest positive-definite matrix to input
-
-        A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
-        credits [2].
-
-        [1] https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd
-
-        [2] N.J. Higham, "Computing a nearest symmetric positive semidefinite
-        matrix" (1988): https://doi.org/10.1016/0024-3795(88)90223-6
-        """
-
-        B = (A + A.T) / 2
-        _, s, V = la.svd(B)
-
-        H = np.dot(V.T, np.dot(np.diag(s), V))
-
-        A2 = (B + H) / 2
-
-        A3 = (A2 + A2.T) / 2
-
-        if self.isPD(A3):
-            return A3
-
-        spacing = np.spacing(la.norm(A))
-        # The above is different from [1]. It appears that MATLAB's `chol` Cholesky
-        # decomposition will accept matrixes with exactly 0-eigenvalue, whereas
-        # Numpy's will not. So where [1] uses `eps(mineig)` (where `eps` is Matlab
-        # for `np.spacing`), we use the above definition. CAVEAT: our `spacing`
-        # will be much larger than [1]'s `eps(mineig)`, since `mineig` is usually on
-        # the order of 1e-16, and `eps(1e-16)` is on the order of 1e-34, whereas
-        # `spacing` will, for Gaussian random matrixes of small dimension, be on
-        # othe order of 1e-16. In practice, both ways converge, as the unit test
-        # below suggests.
-        I = np.eye(A.shape[0])
-        k = 1
-        while not self.isPD(A3):
-            mineig = np.min(np.real(la.eigvals(A3)))
-            A3 += I * (-mineig * k**2 + spacing)
-            k += 1
-
-        return A3
-        
-    def isPD(self, B):
-        """Returns true when input is positive-definite, via Cholesky"""
-        try:
-            _ = la.cholesky(B)
-            return True
-        except la.LinAlgError:
-            return False
         
     def fit(self, embeddings):
         self.mean = torch.mean(embeddings, axis=0)
@@ -122,10 +71,10 @@ class MahalanobisFilter:
         #covariance_matrix = OAS().fit(embeddings).covariance_
         #self.inv_cov = torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float) #torch.tensor(covariance_matrix, dtype=torch.float, device=self.device) #torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float)
         #covariance_matrix = np.cov(embeddings, rowvar=False)
-        #covariance_matrix = torch.matmul(embeddings.t(), embeddings) / (embeddings.size(0) - 1)
-        self.ledoitwolf = LedoitWolf()
-        self.ledoitwolf.fit(embeddings.detach().numpy())
-        covariance_matrix = self.ledoitwolf.precision_
+        covariance_matrix = torch.matmul(embeddings.t(), embeddings) / (embeddings.size(0) - 1)
+        #self.ledoitwolf = LedoitWolf()
+        #self.ledoitwolf.fit(embeddings.detach().numpy())
+        #covariance_matrix = self.ledoitwolf.precision_
         print("covariance_matrix: ", covariance_matrix.shape)
 
         #covariance_matrix = torch.Tensor(embeddings.cpu()).t().mm(torch.Tensor(embeddings.cpu())).cov()
@@ -143,7 +92,8 @@ class MahalanobisFilter:
         #covariance_matrix = self.get_near_psd(covariance_matrix.detach().numpy())
         #covariance_matrix = np.array(self.nearPSD(covariance_matrix.detach().numpy()))
 
-        #if not self.is_positive_semidefinite(covariance_matrix.detach().numpy()):
+        if self.is_positive_semidefinite(covariance_matrix.detach().numpy()):
+            print("Positive semi definite")
         #    print("Covariance Matrix is Positive Semidefinite: ", self.is_positive_semidefinite(covariance_matrix.detach().numpy()))
         #    are_equal = np.array_equal(self.nearestPD(covariance_matrix.detach().numpy()), covariance_matrix.detach().numpy())
         #    print("Are equal nearest Positive definite: ", are_equal)
@@ -166,9 +116,10 @@ class MahalanobisFilter:
             
         
         #self.inv_cov  = np.linalg.pinv(covariance_matrix)
-        #self.inv_cov = torch.pinverse(covariance_matrix)
-        self.inv_cov = torch.tensor(covariance_matrix, dtype=torch.float)
-        
+        self.inv_cov = torch.pinverse(covariance_matrix)
+        #self.inv_cov = torch.tensor(covariance_matrix, dtype=torch.float)
+        if self.is_positive_semidefinite(self.inv_cov.detach().numpy()):
+            print("Positive semi definite")
 
     @staticmethod
     def mahalanobis_distance(
@@ -206,8 +157,8 @@ class MahalanobisFilter:
         return torch.tensor(self.ledoitwolf.mahalanobis(X))
     
     def predict(self, embeddings):
-        #distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
-        distances = self.mahalanobis_distance_v2(embeddings)
+        distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
+        #distances = self.mahalanobis_distance_v2(embeddings)
         mean_value = torch.mean(distances).item()
         std_deviation = torch.std(distances).item()
         print(distances)
@@ -241,6 +192,7 @@ class MahalanobisFilter:
 
         # get all features maps using: the extractor + the imgs
         feature_maps_list = self.get_all_features(labeled_imgs)
+        print(feature_maps_list)
         #print("feature_maps_list imgs: ", feature_maps_list)
         #----------------------------------------------------------------
         if self.is_single_class:
