@@ -18,6 +18,14 @@ class Timm_head_names:
     VIT_GIGANTIC = "vit_gigantic_patch14_clip_224.laion2b"
     MAXVIT = "maxvit_xlarge_tf_512.in21k_ft_in1k"
 
+    # Small embeddings arquitectures
+    XCIT_NANO = "xcit_nano_12_p8_224.fb_dist_in1k"
+    COAT = "coatnext_nano_rw_224.sw_in1k"
+    OPENAI_CLIP_MODEL = "vit_base_patch16_clip_quickgelu_224.openai"
+    # Densenet
+    DENSENET = "densenet121.ra_in1k"
+    WIDERESNET = "wide_resnet50_2.racm_in1k"
+
 class Identity(nn.Module):
     """ Identity to remove one layer """
     def __init__(self):
@@ -37,20 +45,18 @@ class MyFeatureExtractor(nn.Module):
         self.input_size = 0
 
         # different types of head
-        if model_name == Timm_head_names.RESNET10 or \
-            model_name == Timm_head_names.RESNET18 or \
-            model_name == Timm_head_names.RESNETRS_420:
+        if model_name == Timm_head_names.RESNET10 or model_name == Timm_head_names.RESNET18 or model_name == Timm_head_names.RESNETRS_420 or model_name == Timm_head_names.WIDERESNET:
             # get rid of fc
             self.backbone.fc = Identity()
 
         elif model_name == Timm_head_names.RESNETV2_50:
             # get rid of head.fc
             self.backbone.head.fc = Identity()
-        elif model_name == Timm_head_names.EFFICIENT:
+        elif model_name == Timm_head_names.EFFICIENT or model_name == Timm_head_names.DENSENET or model_name == Timm_head_names.DENSENET:
             self.backbone.classifier = Identity()
 
         elif model_name == Timm_head_names.SWINV2_BASE_WINDOW8_256 or \
-            model_name == Timm_head_names.SWIN_LARGE:
+            model_name == Timm_head_names.SWIN_LARGE or model_name == Timm_head_names.COAT:
             # get rid of head.fc
             self.backbone.head.fc = Identity()
             self.backbone.head.flatten = Identity()
@@ -61,7 +67,7 @@ class MyFeatureExtractor(nn.Module):
             self.is_transformer = True
 
         elif model_name == Timm_head_names.ViT or \
-            model_name == Timm_head_names.VIT_GIGANTIC:
+            model_name == Timm_head_names.VIT_GIGANTIC or model_name == Timm_head_names.OPENAI_CLIP_MODEL:
             # get rid of head
             self.backbone.head = Identity()
 
@@ -73,6 +79,13 @@ class MyFeatureExtractor(nn.Module):
              model_name == Timm_head_names.MAXVIT:
             # get rid of head
             self.backbone.head.fc = Identity()
+
+            model_name=model_name.split('.')[0]
+            temp_input_size = int(model_name.split('_')[-1])
+            self.is_transformer = True
+
+        elif model_name == Timm_head_names.XCIT_NANO:
+            self.backbone.head = Identity()
 
             model_name=model_name.split('.')[0]
             temp_input_size = int(model_name.split('_')[-1])
