@@ -164,6 +164,7 @@ class MahalanobisFilter:
 
     def fit_ledoitwolf(self, examples):
         self.mean = torch.mean(examples, axis=0)
+        self.estimate_covariance_ledoitwolf(examples)
         self.inv_cov = torch.Tensor(self.ledoitwolf.precision_)
         print("Self.mean shape: ", self.mean.shape)
         if self.is_positive_definite(self.inv_cov):
