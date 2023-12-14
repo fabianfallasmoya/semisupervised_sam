@@ -372,9 +372,9 @@ class MahalanobisFilter:
             if fit_func == "ledoitwolf":
                 self.fit_ledoitwolf(support_features)
             elif fit_func == "ledoitwolf_regularization":
-                self.fit_regularization(support_features, all_support_features)
-            elif fit_func == "regularization":
                 self.fit_regularization_ledoitwolf(support_features, all_support_features)
+            elif fit_func == "regularization":
+                self.fit_regularization(support_features, all_support_features)
 
             distances = self.predict(support_features)
 
