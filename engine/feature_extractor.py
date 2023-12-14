@@ -22,6 +22,8 @@ class Timm_head_names:
     XCIT_NANO = "xcit_nano_12_p8_224.fb_dist_in1k"
     COAT = "coatnext_nano_rw_224.sw_in1k"
     OPENAI_CLIP_MODEL = "vit_base_patch16_clip_quickgelu_224.openai"
+    EVA_MODEL = "eva02_large_patch14_448.mim_m38m_ft_in22k_in1k"
+    
     # Densenet
     DENSENET = "densenet121.ra_in1k"
     WIDERESNET = "wide_resnet50_2.racm_in1k"
@@ -67,7 +69,7 @@ class MyFeatureExtractor(nn.Module):
             self.is_transformer = True
 
         elif model_name == Timm_head_names.ViT or \
-            model_name == Timm_head_names.VIT_GIGANTIC or model_name == Timm_head_names.OPENAI_CLIP_MODEL:
+            model_name == Timm_head_names.VIT_GIGANTIC or model_name == Timm_head_names.OPENAI_CLIP_MODEL or model_name == Timm_head_names.EVA_MODEL:
             # get rid of head
             self.backbone.head = Identity()
 
