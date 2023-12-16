@@ -297,7 +297,7 @@ class MahalanobisFilter:
         labeled_loader,
         unlabeled_loader,
         dir_filtered_root = None, get_background_samples=True,
-        num_classes:float=0, fit_func="ledoitwolf"):
+        num_classes:float=0, fit_func="regularization"):
 
         # 1. Get feature maps from the labeled set
         labeled_imgs = []
