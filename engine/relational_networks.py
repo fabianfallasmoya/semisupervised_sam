@@ -61,7 +61,7 @@ class RelationNetworks(FewShot):
         self.use_sam_embeddings = use_sam_embeddings
         self.preprocess = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.Resize((124, 124)),
+            transforms.Resize((self.backbone.input_size, self.backbone.input_size)),
             transforms.ToTensor()
         ])
 
@@ -147,6 +147,7 @@ class RelationNetworks(FewShot):
         # Given that query_features is of shape (n_queries, n_channels, width, height), the
         # constructed tensor is of shape (n_queries * n_prototypes, 2 * n_channels, width, height)
         # (2 * n_channels because prototypes and queries are concatenated)
+        print("z_query: ", z_query.shape)
         query_prototype_feature_pairs = torch.cat(
             (
                 self.prototypes.unsqueeze(dim=0).expand(

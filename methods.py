@@ -71,9 +71,6 @@ def sam_simple(args, output_root):
     elif args.sam_proposal == "fastsam":
         sam = FASTSAM(args)
         sam.load_simple_mask()
-    #elif args.sam_proposal == "semanticsam":
-    #    sam = SemanticSAM(args)
-    #    sam.load_simple_mask()
     else:
         sam = SAM(args)
         sam.load_simple_mask()
@@ -116,9 +113,6 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     elif args.sam_proposal == "fastsam":
         sam = FASTSAM(args)
         sam.load_simple_mask()
-    #elif args.sam_proposal == "semanticsam":
-    #    sam = SemanticSAM(args)
-    #    sam.load_simple_mask()
     else:
         sam = SAM(args)
         sam.load_simple_mask()
@@ -280,9 +274,6 @@ def ood_filter(args, output_root):
     elif args.sam_proposal == "fastsam":
         sam = FASTSAM(args)
         sam.load_simple_mask()
-    #elif args.sam_proposal == "semanticsam":
-    #    sam = SemanticSAM(args)
-    #    sam.load_simple_mask()
     else:
         sam = SAM(args)
         sam.load_simple_mask()
@@ -425,9 +416,6 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
     elif args.sam_proposal == "fastsam":
         sam = FASTSAM(args)
         sam.load_simple_mask()
-    #elif args.sam_proposal == "semanticsam":
-    #    sam = SemanticSAM(args)
-    #    sam.load_simple_mask()
     else:
         sam = SAM(args)
         sam.load_simple_mask()
