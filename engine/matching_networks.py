@@ -120,10 +120,11 @@ class MatchingNetworks(FewShot):
                 t_temp = self.get_embeddings_timm(img)
             support_features.append(t_temp.squeeze().cpu())
         
+        support_features = torch.stack(support_features)
         if self.is_single_class:
-            print("No implemented for one class!")
+            raise NotImplementedError(
+                "Not implemented for single class.")
         else:
-            support_features = torch.stack(support_features)
             self.contextualized_support_features = self.encode_support_features(
                 support_features
             )
