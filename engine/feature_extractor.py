@@ -21,7 +21,7 @@ class Timm_head_names:
     # Small embeddings arquitectures
     XCIT_NANO = "xcit_nano_12_p8_224.fb_dist_in1k"
     COAT = "coatnext_nano_rw_224.sw_in1k"
-    OPENAI_CLIP_MODEL = "vit_base_patch16_clip_quickgelu_224.openai"
+    OPENAI_CLIP_MODEL = "vit_base_patch16_clip_224.openai_ft_in1k"
     EVA_MODEL = "eva02_large_patch14_448.mim_m38m_ft_in22k_in1k"
     
     # Densenet
