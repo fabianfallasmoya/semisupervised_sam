@@ -5,7 +5,7 @@ import cv2
 from torch.nn.parallel import DistributedDataParallel as NativeDDP
 from engine.fastsam_model import FASTSAM
 from engine.mobilesam_model import MobileSAM
-#from engine.semantic_sam import SemanticSAM
+from engine.subspaces_filter import SubspacesFilter
 
 try:
     from apex import amp
@@ -65,10 +65,10 @@ def sam_simple(args, output_root):
     save_loader_to_json(full_label_l, output_root, filename="full_label")
     
     # STEP 2: create an SAM instance
-    if args.sam_proposal == "mobilesam":
+    if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
         sam = MobileSAM(args)
         sam.load_simple_mask()
-    elif args.sam_proposal == "fastsam":
+    elif args.sam_proposal == Constants_SamMethod.FAST_SAM:
         sam = FASTSAM(args)
         sam.load_simple_mask()
     else:
@@ -107,10 +107,10 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     save_loader_to_json(test_loader, output_root, filename="test")
 
     # STEP 2: create an SAM instance
-    if args.sam_proposal == "mobilesam":
+    if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
         sam = MobileSAM(args)
         sam.load_simple_mask()
-    elif args.sam_proposal == "fastsam":
+    elif args.sam_proposal == Constants_SamMethod.FAST_SAM:
         sam = FASTSAM(args)
         sam.load_simple_mask()
     else:
@@ -268,10 +268,10 @@ def ood_filter(args, output_root):
 
     # STEP 2: run the ood filter using inferences from SAM
     # sam instance - default values of the model
-    if args.sam_proposal == "mobilesam":
+    if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
         sam = MobileSAM(args)
         sam.load_simple_mask()
-    elif args.sam_proposal == "fastsam":
+    elif args.sam_proposal == Constants_SamMethod.FAST_SAM:
         sam = FASTSAM(args)
         sam.load_simple_mask()
     else:
@@ -410,10 +410,10 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
 
     # sam instance - default values of the model
     # STEP 2: create an SAM instance
-    if args.sam_proposal == "mobilesam":
+    if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
         sam = MobileSAM(args)
         sam.load_simple_mask()
-    elif args.sam_proposal == "fastsam":
+    elif args.sam_proposal == Constants_SamMethod.FAST_SAM:
         sam = FASTSAM(args)
         sam.load_simple_mask()
     else:
@@ -450,6 +450,60 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
     else:
         print("No implemented for multiple class mahalanobis!")
 
+def subspaces_filter(args, is_single_class=True, output_root=None):
+    """ Use sam and fewshot (maximum likelihood) to classify masks.
+    Params
+    :args -> parameters from bash.
+    :output_root (str) -> output folder location.
+    """
+    # STEP 1: create data loaders
+    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
+    # save new gt into a separate json file
+    if not os.path.exists(output_root):
+        os.makedirs(output_root)
+    # save gt
+    save_loader_to_json(test_loader, output_root, "test")
+
+    # sam instance - default values of the model
+    # STEP 2: create an SAM instance
+    if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
+        sam = MobileSAM(args)
+        sam.load_simple_mask()
+    elif args.sam_proposal == Constants_SamMethod.FAST_SAM:
+        sam = FASTSAM(args)
+        sam.load_simple_mask()
+    else:
+        sam = SAM(args)
+        sam.load_simple_mask()
+
+    # instance the main class and instance the timm model
+    subspaces_filter = SubspacesFilter(
+        timm_model=args.timm_model, 
+        timm_pretrained=args.load_pretrained,
+        sam_model=sam,
+        use_sam_embeddings=args.use_sam_embeddings,
+        is_single_class=is_single_class
+    )
+
+    # run filter using the backbone, sam, and ood
+    subspaces_filter.run_filter(
+        labeled_loader, test_loader, 
+        dir_filtered_root=output_root
+    )
+
+    # STEP 3: evaluate results
+    MAX_IMAGES = 100000
+    gt_eval_path = f"{output_root}/test.json"
+    coco_gt = COCO(gt_eval_path)
+    image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+    res_data = f"{output_root}/bbox_results.json"
+
+    eval_sam(
+        coco_gt, image_ids, res_data, 
+        output_root, method=args.method,
+    )
+        
+
 if __name__ == '__main__':
     args = get_parameters()
 
@@ -484,3 +538,5 @@ if __name__ == '__main__':
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_MAHALANOBIS:
         mahalanobis_filter(args, is_single_class=True, output_root=output_root)
+    elif args.method == Constants_MainMethod.FEWSHOT_SUBSPACES:
+        subspaces_filter(args, is_single_class=True, output_root=output_root)
