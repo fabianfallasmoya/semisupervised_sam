@@ -6,6 +6,7 @@ from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models, get_background
 from tqdm import tqdm
 import cv2
+from sklearn.preprocessing import PowerTransformer
 
 class SubspacesFilter:
 
@@ -95,7 +96,7 @@ class SubspacesFilter:
     def projection_metric(self, x, hyper_planes, mean):
         eps = 1e-12
         target_features_expanded = (x - mean).unsqueeze(0).T
-        projected_query_j = torch.matmul(hyper_planes.float(), (hyper_planes.float().T @ target_features_expanded))
+        projected_query_j = torch.matmul(hyper_planes.float(), (hyper_planes.float().T @ target_features_expanded.float()))
         projected_query_j = torch.squeeze(projected_query_j).T + mean
         projected_query_dist_inter = x - projected_query_j
         distance = torch.sqrt(torch.sum(projected_query_dist_inter * projected_query_dist_inter, dim=-1) + eps)
@@ -121,6 +122,38 @@ class SubspacesFilter:
         return distance
     """
 
+    def sample_and_calculate_stats(self, data, num_samples=10):
+        mean_list = []
+        covariance_list = []
+
+        for _ in range(num_samples):
+            # Randomly sample 5 rows with replacement
+            sampled_rows = np.random.choice(data.shape[0], int(data.shape[0]/4), replace=True)
+
+            # Calculate mean and covariance for the sampled rows
+            sample_mean = np.mean(data[sampled_rows, :], axis=0)
+            sample_covariance = np.cov(data[sampled_rows, :], rowvar=False)
+
+            # Append to the lists
+            mean_list.append(sample_mean)
+            covariance_list.append(sample_covariance)
+
+        return mean_list, covariance_list
+
+    def distribution_calibration(self, query, base_means, base_cov, k,alpha=0.21):
+        dist = []
+        for i in range(len(base_means)):
+            dist.append(np.linalg.norm(query-base_means[i]))
+        print(" query[np.newaxis, :]: ",  query[np.newaxis, :].shape)
+        print(" np.array(base_means)[index]: ",  np.array(base_means).shape)
+
+        index = np.argpartition(dist, k)[:k]
+        mean = np.concatenate([np.array(base_means)[index], query])
+        calibrated_mean = np.mean(mean, axis=0)
+        calibrated_cov = np.mean(np.array(base_cov)[index], axis=0)+alpha
+
+        return calibrated_mean, calibrated_cov
+
     def run_filter(self,
         labeled_loader,
         unlabeled_loader,
@@ -134,10 +167,12 @@ class SubspacesFilter:
         #all_imgs_context = []
         #all_label_context = []
         
-        back_imgs_context = []
-        back_label_context = []
+        #back_imgs_context = []
+        #back_label_context = []
 
-        for batch in labeled_loader:
+        for (batch_num, batch) in tqdm(
+                    enumerate(labeled_loader), total= len(labeled_loader), desc="Extract images"
+                ):
             # every batch is a tuple: (torch.imgs , metadata_and_bboxes)
             # ITERATE: IMAGE
             for idx in list(range(batch[1]['img_idx'].numel())):
@@ -152,20 +187,18 @@ class SubspacesFilter:
                 #all_imgs_context += imgs_f
                 #all_label_context += labels_f
 
-                if get_background_samples:
-                    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
+                #if get_background_samples:
+                #    ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
 
-                    imgs_b, labels_b = get_background(
-                        batch, idx, self.trans_norm, ss, 
-                        num_classes, self.use_sam_embeddings)
-                    back_imgs_context += imgs_b
-                    back_label_context += labels_b
+                #    imgs_b, labels_b = get_background(
+                #        batch, idx, self.trans_norm, ss, 
+                #        num_classes, self.use_sam_embeddings)
+                #    back_imgs_context += imgs_b
+                #    back_label_context += labels_b
         #if len(labeled_imgs) < 100:
         #    all_imgs_context = labeled_imgs + back_imgs_context
         #else:
-        all_imgs_context = labeled_imgs + back_imgs_context[:len(labeled_imgs)]
-
-                # Specify the file path to save the tensor
+        #all_imgs_context = labeled_imgs + back_imgs_context[:len(labeled_imgs)]
 
 
         #print("Len labeled imgs: ", len(labeled_imgs))
@@ -174,8 +207,8 @@ class SubspacesFilter:
 
         # get all features maps using: the extractor + the imgs
         feature_maps_list = self.get_all_features(labeled_imgs)
-        all_feature_maps_list = self.get_all_features(all_imgs_context)
-        back_imgs_context = self.get_all_features(back_imgs_context)
+        #all_feature_maps_list = self.get_all_features(all_imgs_context)
+        #back_imgs_context = self.get_all_features(back_imgs_context)
 
         #print("Feature map list: ", feature_maps_list)
         #print("feature_maps_list imgs: ", feature_maps_list)
@@ -190,11 +223,21 @@ class SubspacesFilter:
         #support_features_imgs_1 = torch.stack(imgs_1)
         #support_features_imgs_2 = torch.stack(imgs_2)
         support_features = torch.stack(feature_maps_list)
-        all_support_features = torch.stack(all_feature_maps_list)        
-        back_imgs_context = torch.stack(back_imgs_context)
+        #all_support_features = torch.stack(all_feature_maps_list)        
+        #back_imgs_context = torch.stack(back_imgs_context)
 
         print("Support features shape: ", support_features.shape)
-        print("all_support_features shape: ", all_support_features.shape)
+        #print("all_support_features shape: ", all_support_features.shape)
+
+        # -----------------------------------------------------------
+        # NORMALIZE THE TENSORS
+        #base_means, base_cov = self.sample_and_calculate_stats(support_features.detach().numpy(), num_samples=10)
+        #pt = PowerTransformer(method='yeo-johnson', standardize=False)
+        #support_features = pt.fit_transform(support_features.detach().numpy())
+        #mean, cov = self.distribution_calibration(support_features, base_means, base_cov, k=2)
+        #sampled_data = np.random.multivariate_normal(mean=mean, cov=cov, size=int(support_features.shape[0]*(1/2)))
+        #support_features_aug = np.concatenate([support_features, sampled_data])
+        #support_features = torch.tensor(support_features_aug)
 
         # Save the tensor to the specified file
         #torch.save(support_features, './tensor_foreground.pt')
@@ -213,15 +256,14 @@ class SubspacesFilter:
 
             distances = self.predict(support_features)
 
-
             # Using IQR
-            #Q1 = np.percentile(distances.numpy(), 25)
-            #Q3 = np.percentile(distances.numpy(), 75)
-            #IQR = Q3 - Q1
-            #threshold = 1.5 * IQR
-            #self.threshold = Q3 + threshold 
-            #print("Q1: ", Q1)
-            #print("Q3: ", Q3)
+            Q1 = np.percentile(distances.numpy(), 25)
+            Q3 = np.percentile(distances.numpy(), 75)
+            IQR = Q3 - Q1
+            threshold = 1.5 * IQR
+            self.threshold = Q3 + threshold 
+            print("Q1: ", Q1)
+            print("Q3: ", Q3)
 
             # Using Median Absolute Deviation to set the threshold
             #median = np.median(distances.numpy())
@@ -229,8 +271,8 @@ class SubspacesFilter:
             #mad = np.median(absolute_deviations)
             #self.threshold = median + 3 * mad
 
-            self.threshold = max(distances).item()
-            print("Distances: ", distances)
+            #self.threshold = max(distances).item()
+            #print("Distances: ", distances)
             mean_value = torch.mean(distances).item()
             std_deviation = torch.std(distances).item()
             print(distances)
@@ -238,10 +280,10 @@ class SubspacesFilter:
             print("Standard Deviation predicted:", std_deviation)
 
             print("Threshold: ", self.threshold)
-        else:
-            self.all_hyper_planes_cls_0, self.means_cls_0 = self.fit_two_cls(support_features)
-            self.all_hyper_planes_cls_1, self.means_cls_1 = self.fit_two_cls(back_imgs_context)
-            print("Two classes Subspaces filter")
+        #else:
+            #self.all_hyper_planes_cls_0, self.means_cls_0 = self.fit_two_cls(support_features)
+            #self.all_hyper_planes_cls_1, self.means_cls_1 = self.fit_two_cls(back_imgs_context)
+            #print("Two classes Subspaces filter")
 
 
             
@@ -255,12 +297,13 @@ class SubspacesFilter:
 
         # 3. Get batch of unlabeled // Evaluating the likelihood of unlabeled data
         for (batch_num, batch) in tqdm(
-            enumerate(unlabeled_loader), total= len(unlabeled_loader)
+            enumerate(unlabeled_loader), total= len(unlabeled_loader), desc="Iterate batch unlabeled"
         ):
             unlabeled_imgs = []
             # every batch is a tuple: (torch.imgs , metadata_and_bboxes)
             # ITERATE: IMAGE
-            for idx in list(range(batch[1]['img_idx'].numel())):
+            for idx in tqdm(list(range(batch[1]['img_idx'].numel())), desc="Iterate images"):
+            #for idx in list(range(batch[1]['img_idx'].numel())):
                 # get foreground samples (from sam)
                 imgs_s, box_coords, scores = self.sam_model.get_unlabeled_samples(
                     batch, idx, self.trans_norm, self.use_sam_embeddings
@@ -276,6 +319,9 @@ class SubspacesFilter:
             featuremaps_list = self.get_all_features(unlabeled_imgs)
             featuremaps = torch.stack(featuremaps_list) # e.g. [387 x 512]
             #torch.save(featuremaps, './tensor_unlabeled.pt')
+
+            # ----------------------------------------------------
+            #featuremaps = torch.Tensor(pt.transform(featuremaps.detach().numpy()))
 
             # init buffer with distances
             support_set_distances = []
@@ -352,12 +398,12 @@ class SubspacesFilter:
         # get feature maps from the images
         if self.use_sam_embeddings:
             with torch.no_grad():
-                for img in images:
+                for img in tqdm(images, desc="Extract features"):
                     t_temp = self.feature_extractor.get_embeddings(img)
                     features.append(t_temp.squeeze().cpu())
         else:
             with torch.no_grad():
-                for img in images:
+                for img in tqdm(images, desc="Extract features"):
                     t_temp = self.feature_extractor(img.unsqueeze(dim=0).to(self.device))
                     features.append(t_temp.squeeze().cpu())
         return features
