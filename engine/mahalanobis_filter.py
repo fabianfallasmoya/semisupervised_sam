@@ -8,6 +8,8 @@ from tqdm import tqdm
 from numpy import linalg as la
 from sklearn.covariance import LedoitWolf, MinCovDet
 import cv2
+from sklearn.preprocessing import PowerTransformer
+from sklearn.decomposition import TruncatedSVD
 
 class MahalanobisFilter:
 
@@ -293,6 +295,43 @@ class MahalanobisFilter:
         print("Standard Deviation predicted:", std_deviation)
         return distances
 
+    def sample_and_calculate_stats(self, data, num_samples=10):
+        mean_list = []
+        covariance_list = []
+
+        for _ in range(num_samples):
+            # Randomly sample 5 rows with replacement
+            sampled_rows = np.random.choice(data.shape[0], int(data.shape[0]/4), replace=True)
+
+            # Calculate mean and covariance for the sampled rows
+            sample_mean = np.mean(data[sampled_rows, :], axis=0)
+            sample_covariance = np.cov(data[sampled_rows, :], rowvar=False)
+
+            # Append to the lists
+            mean_list.append(sample_mean)
+            covariance_list.append(sample_covariance)
+
+        return mean_list, covariance_list
+
+    def distribution_calibration(self, query, base_means, base_cov, k,alpha=0.21):
+        dist = []
+        for i in range(len(base_means)):
+            dist.append(np.linalg.norm(query-base_means[i]))
+        print(" query[np.newaxis, :]: ",  query[np.newaxis, :].shape)
+        print(" np.array(base_means)[index]: ",  np.array(base_means).shape)
+
+        index = np.argpartition(dist, k)[:k]
+        mean = np.concatenate([np.array(base_means)[index], query])
+        calibrated_mean = np.mean(mean, axis=0)
+        calibrated_cov = np.mean(np.array(base_cov)[index], axis=0)+alpha
+
+        return calibrated_mean, calibrated_cov
+    
+    def fit_svd(self, x):
+        self.svd = TruncatedSVD(n_components=10)#int(x.shape[0]/4))
+        # prepare transform on dataset
+        self.svd.fit(x)
+        
     def run_filter(self,
         labeled_loader,
         unlabeled_loader,
@@ -309,7 +348,9 @@ class MahalanobisFilter:
         back_imgs_context = []
         back_label_context = []
 
-        for batch in labeled_loader:
+        for (batch_num, batch) in tqdm(
+                    enumerate(labeled_loader), total= len(labeled_loader), desc="Extract images"
+            ):            
             # every batch is a tuple: (torch.imgs , metadata_and_bboxes)
             # ITERATE: IMAGE
             for idx in list(range(batch[1]['img_idx'].numel())):
@@ -332,8 +373,12 @@ class MahalanobisFilter:
                         num_classes, self.use_sam_embeddings)
                     back_imgs_context += imgs_b
                     back_label_context += labels_b
-
+        #if len(labeled_imgs) < 100:
+        #    all_imgs_context = labeled_imgs + back_imgs_context
+        #else:
         all_imgs_context = labeled_imgs + back_imgs_context[:len(labeled_imgs)]
+
+
 
         #print("Len labeled imgs: ", len(labeled_imgs))
         # labels start from index 1 to n, translate to start from 0 to n.
@@ -342,6 +387,7 @@ class MahalanobisFilter:
         # get all features maps using: the extractor + the imgs
         feature_maps_list = self.get_all_features(labeled_imgs)
         all_feature_maps_list = self.get_all_features(all_imgs_context)
+        #back_imgs_context = self.get_all_features(back_imgs_context)
 
         #print("Feature map list: ", feature_maps_list)
         #print("feature_maps_list imgs: ", feature_maps_list)
@@ -356,9 +402,27 @@ class MahalanobisFilter:
         #support_features_imgs_1 = torch.stack(imgs_1)
         #support_features_imgs_2 = torch.stack(imgs_2)
         support_features = torch.stack(feature_maps_list)
-        all_support_features = torch.stack(all_feature_maps_list)
+        all_support_features = torch.stack(all_feature_maps_list)        
+        #back_imgs_context = torch.stack(back_imgs_context)
+
         print("Support features shape: ", support_features.shape)
         print("all_support_features shape: ", all_support_features.shape)
+
+        # -----------------------------------------------------------
+        # NORMALIZE THE TENSORS
+        #base_means, base_cov = self.sample_and_calculate_stats(support_features.detach().numpy(), num_samples=10)
+        #pt = PowerTransformer(method='yeo-johnson', standardize=False)
+        #support_features = pt.fit_transform(support_features.detach().numpy())
+        #mean, cov = self.distribution_calibration(support_features, base_means, base_cov, k=2)
+        #sampled_data = np.random.multivariate_normal(mean=mean, cov=cov, size=200)
+        #support_features_aug = np.concatenate([support_features, sampled_data])
+        #support_features  = torch.tensor(support_features_aug)
+        #sampled_data = torch.tensor(sampled_data)
+        #all_support_features = torch.cat((all_support_features, sampled_data), dim=0)
+
+        # Save the tensor to the specified file
+        #torch.save(support_features, './tensor_foreground.pt')
+        #torch.save(back_imgs_context, './tensor_background.pt')
 
         #support_features = torch.sigmoid(support_features)
         #print("Support features mean: ", support_features.mean())
@@ -374,6 +438,12 @@ class MahalanobisFilter:
             elif fit_func == "ledoitwolf_regularization":
                 self.fit_regularization_ledoitwolf(support_features, all_support_features)
             elif fit_func == "regularization":
+                # Dimensionality reduction usign SVD
+                self.fit_svd(all_support_features.detach().numpy())
+                all_support_features = torch.Tensor(self.svd.transform(all_support_features.detach().numpy()))
+                support_features = torch.Tensor(self.svd.transform(support_features.detach().numpy()))
+
+                # Estimate covariance and mean for mahalanobis 
                 self.fit_regularization(support_features, all_support_features)
 
             distances = self.predict(support_features)
@@ -391,12 +461,12 @@ class MahalanobisFilter:
 
         # 3. Get batch of unlabeled // Evaluating the likelihood of unlabeled data
         for (batch_num, batch) in tqdm(
-            enumerate(unlabeled_loader), total= len(unlabeled_loader)
+            enumerate(unlabeled_loader), total= len(unlabeled_loader), desc="Iterate batch unlabeled"
         ):
             unlabeled_imgs = []
             # every batch is a tuple: (torch.imgs , metadata_and_bboxes)
             # ITERATE: IMAGE
-            for idx in list(range(batch[1]['img_idx'].numel())):
+            for idx in tqdm(list(range(batch[1]['img_idx'].numel())), desc="Iterate images"):
                 # get foreground samples (from sam)
                 imgs_s, box_coords, scores = self.sam_model.get_unlabeled_samples(
                     batch, idx, self.trans_norm, self.use_sam_embeddings
@@ -411,7 +481,13 @@ class MahalanobisFilter:
             # get all features maps using: the extractor + the imgs
             featuremaps_list = self.get_all_features(unlabeled_imgs)
             featuremaps = torch.stack(featuremaps_list) # e.g. [387 x 512]
-            
+            #torch.save(featuremaps, './tensor_unlabeled.pt')
+            # Reduce dimensionality selecting the top 10 singular values
+            featuremaps = torch.Tensor(self.svd.transform(featuremaps.detach().numpy()))
+
+            # ----------------------------------------------------
+            # Normalization
+            #featuremaps = torch.Tensor(pt.transform(featuremaps.detach().numpy()))
             # init buffer with distances
             support_set_distances = []
             distances = self.predict(featuremaps)
@@ -466,12 +542,12 @@ class MahalanobisFilter:
         # get feature maps from the images
         if self.use_sam_embeddings:
             with torch.no_grad():
-                for img in images:
+                for img in tqdm(images, desc="Extract features"):
                     t_temp = self.feature_extractor.get_embeddings(img)
                     features.append(t_temp.squeeze().cpu())
         else:
             with torch.no_grad():
-                for img in images:
+                for img in tqdm(images, desc="Extract features"):
                     t_temp = self.feature_extractor(img.unsqueeze(dim=0).to(self.device))
                     features.append(t_temp.squeeze().cpu())
         return features
