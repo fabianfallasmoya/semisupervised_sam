@@ -1,19 +1,20 @@
 from segment_anything import SamAutomaticMaskGenerator
 from segment_anything import sam_model_registry
-import numpy as np
+from PIL import Image
+from fastsam import FastSAM
+
 import torch
 import torchvision
-from PIL import Image
-from segment_anything.predictor import SamPredictor
-from fastsam import FastSAM, FastSAMPrompt
 
 class FASTSAM:
     def __init__(self, args) -> None:
         self.device = args.device
+        self.use_sam_embeddings = False
+        
+        # Config for Fast SAM model for object proposals
         self.checkpoint = 'weights/FastSAM.pt'
         self.model = FastSAM(self.checkpoint)
-        self.use_sam_embeddings = False
-
+        
         # ------------------------------------------------
         # Config for SAM model for the embeddings
         if args.use_sam_embeddings == 1:
@@ -27,7 +28,6 @@ class FASTSAM:
             else:
                 RuntimeError("No sam config found")
             self.model_embeddings = sam_model_registry[self.model_type_embeddings](checkpoint=self.checkpoint_embeddings).to(args.device)
-
 
     def load_simple_mask(self):
         #There are several tunable parameters in automatic mask generation that control 
@@ -70,26 +70,19 @@ class FASTSAM:
         img = batch[0][idx].cpu().numpy().transpose(1,2,0)
         img_pil = Image.fromarray(img)
 
-        # run sam to create proposals
-        #masks = self.mask_generator.generate(img)
-        #everything_results = self.model(img_pil)#, retina_masks=True, conf=0.1, iou=0.2, imgsz=896)
-        everything_results = self.model(img_pil, device=self.device, retina_masks=True, imgsz=1024, conf=0.4, iou=0.9,)
+        # run fastsam to create proposals to create segment everything
+        everything_results = self.model(img_pil, device=self.device, retina_masks=True, imgsz=1024, conf=0.1, iou=0.8,) #conf=0.4, iou=0.9,)
 
-        #prompt_process = FastSAMPrompt(img_pil, everything_results,  device=self.device)
-        #prompt_process.everything_prompt()
+        # get the raw bounding boxes with the format: (x1, y1, x2, y2, conf, cls)
         results = everything_results[0].boxes
 
-        #for _, xywh, score in zip(results.xyxy, results.xywh, results.conf):
-        for _, data, score in zip(results.xyxy, results.data, results.conf):
-            #xyxy = torchvision.ops.box_convert(
-            #    torch.tensor(xywh), in_fmt='xywh', out_fmt='xyxy'
-            #)
-            bbox = data.numpy()[:4]
+        for bbox, score in zip(results.data, results.conf):
+            # get the raw bounding boxes using the first 4: (x1, y1, x2, y2, conf, cls)
+            xyxy = bbox.numpy()[:4]
             xywh = torchvision.ops.box_convert(
-                    torch.tensor(bbox), in_fmt='xyxy', out_fmt='xywh'
-            )
+                    torch.tensor(xyxy), in_fmt='xyxy', out_fmt='xywh')
             
-            crop = img_pil.crop(bbox)  
+            crop = img_pil.crop(xyxy)  
             if use_sam_embeddings:
                 sample = transform.preprocess_sam_embed(crop)
             else:
