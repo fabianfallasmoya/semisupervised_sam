@@ -31,6 +31,9 @@ class Constants_SamMethod:
     MOBILE_SAM = 'mobilesam'
     FAST_SAM = 'fastsam'
 
+class Constants_DimensionalityReductionMethod:
+    SVD = 'svd'
+    PCA = 'pca'
 
 def add_bool_arg(parser, name, default=False, help=''):
     dest_name = name.replace('-', '_')
@@ -102,6 +105,10 @@ def get_parameters():
     
     # Possible values for sam-proposal to generate object proposals, 'sam' 'semanticsam' 'mobilesam' 'fastsam'
     parser.add_argument('--sam-proposal', type=str, default="sam")
+
+    # Dimensionality reduction parameters
+    parser.add_argument('--dim-red', type=str, default="svd")
+    parser.add_argument('--n-components', type=int, default=10)
 
     return parser.parse_args()
 
