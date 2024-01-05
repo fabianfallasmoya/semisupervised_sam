@@ -1,15 +1,18 @@
 import os
+import cv2
 import json
 import torch
 import numpy as np
+
 from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models, get_background
 from tqdm import tqdm
 from numpy import linalg as la
-from sklearn.covariance import LedoitWolf, MinCovDet
-import cv2
+
 from sklearn.preprocessing import PowerTransformer
-from sklearn.decomposition import TruncatedSVD
+from sklearn.decomposition import TruncatedSVD, PCA
+
+from utils import *
 
 class MahalanobisFilter:
 
@@ -20,7 +23,9 @@ class MahalanobisFilter:
                 sam_model=None,
                 use_sam_embeddings=False,
                 is_single_class=True,
-                device="cpu"):
+                device="cpu", 
+                dim_red=None, 
+                n_components=10):
         """
         Raises:
             ValueError: if the backbone is not a feature extractor,
@@ -34,7 +39,10 @@ class MahalanobisFilter:
         self.timm_model = timm_model
         self.sam_model = sam_model
         self.is_single_class = is_single_class
-        #self.power_transf = PowerTransformer(method='yeo-johnson', standardize=True)
+
+        # Dimensionality reduction
+        self.dim_red = dim_red
+        self.n_components = n_components
 
         if not use_sam_embeddings:
             # create a model for feature extraction
@@ -112,35 +120,6 @@ class MahalanobisFilter:
         examples_t = examples.t()
         return factor * examples.matmul(examples_t).squeeze()
 
-    def estimate_covariance_ledoitwolf(self, embeddings):
-        self.ledoitwolf = LedoitWolf()
-        self.ledoitwolf.fit(embeddings.detach().numpy())
-        covariance_matrix = self.ledoitwolf.covariance_
-        return torch.Tensor(covariance_matrix)
-    
-    def fit_regularization_ledoitwolf(self, examples, context_features=None):
-        self.mean = torch.mean(examples, axis=0)
-        
-        covariance_matrix = self.estimate_covariance_ledoitwolf(examples) #self.estimate_covariance(examples)
-        if context_features != None:
-            context_covariance_matrix = self.estimate_covariance_ledoitwolf(context_features) #self.estimate_covariance(context_features)
-
-        lambda_k_tau = (examples.size(0) / (examples.size(0) + 1))
-
-        print("Covariance matrix shape: ", covariance_matrix.shape)
-        print("torch.eye(examples.size(1), examples.size(1)) shape: ", torch.eye(examples.size(1), examples.size(1)).shape)
-
-        self.inv_cov = torch.inverse((lambda_k_tau * covariance_matrix) + ((1 - lambda_k_tau) * context_covariance_matrix) \
-                    + torch.eye(examples.size(1), examples.size(1)))
-        
-        print("Self.mean shape: ", self.mean.shape)
-        if self.is_positive_definite(self.inv_cov):
-            print("The matrix is positive definite.")
-        elif self.is_positive_semidefinite(self.inv_cov):
-            print("The matrix is positive semi-definite.")
-        else:
-            print("The matrix is neither positive definite nor positive semi-definite.")
-
     def fit_regularization(self, examples, context_features=None):
         self.mean = torch.mean(examples, axis=0)
         
@@ -150,13 +129,9 @@ class MahalanobisFilter:
 
         lambda_k_tau = (examples.size(0) / (examples.size(0) + 1))
 
-        print("Covariance matrix shape: ", covariance_matrix.shape)
-        print("torch.eye(examples.size(1), examples.size(1)) shape: ", torch.eye(examples.size(1), examples.size(1)).shape)
-
         self.inv_cov = torch.inverse((lambda_k_tau * covariance_matrix) + ((1 - lambda_k_tau) * context_covariance_matrix) \
                     + torch.eye(examples.size(1), examples.size(1)))
         
-        print("Self.mean shape: ", self.mean.shape)
         if self.is_positive_definite(self.inv_cov):
             print("The matrix is positive definite.")
         elif self.is_positive_semidefinite(self.inv_cov):
@@ -164,96 +139,6 @@ class MahalanobisFilter:
         else:
             print("The matrix is neither positive definite nor positive semi-definite.")
 
-    def fit_ledoitwolf(self, examples):
-        self.mean = torch.mean(examples, axis=0)
-        self.estimate_covariance_ledoitwolf(examples)
-        self.inv_cov = torch.Tensor(self.ledoitwolf.precision_)
-        print("Self.mean shape: ", self.mean.shape)
-        if self.is_positive_definite(self.inv_cov):
-            print("The matrix is positive definite.")
-        elif self.is_positive_semidefinite(self.inv_cov):
-            print("The matrix is positive semi-definite.")
-        else:
-            print("The matrix is neither positive definite nor positive semi-definite.")
-
-    def fit(self, embeddings):
-        #embeddings = torch.Tensor(torch.sigmoid(embeddings))
-        self.mean = torch.mean(embeddings, axis=0)
-        print(self.mean.shape)
-        # Covariance matrix
-        #covariance_matrix = ShrunkCovariance().fit(embeddings).covariance_
-        #covariance_matrix = OAS().fit(embeddings).covariance_
-        #self.inv_cov = torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float) #torch.tensor(covariance_matrix, dtype=torch.float, device=self.device) #torch.tensor(np.linalg.pinv(covariance_matrix), dtype=torch.float)
-        #covariance_matrix = np.cov(embeddings, rowvar=False)
-        
-        #covariance_matrix = torch.matmul(embeddings.t(), embeddings) / (embeddings.size(0) - 1)
-        
-        #embeddings = self.power_transf.fit_transform(embeddings.detach().numpy())
-
-        self.ledoitwolf = LedoitWolf()
-        self.ledoitwolf.fit(embeddings.detach().numpy())
-        #self.ledoitwolf.fit(embeddings)
-        covariance_matrix = self.ledoitwolf.precision_
-        #print("covariance_matrix: ", covariance_matrix.shape)
-
-        #covariance_matrix = torch.Tensor(embeddings.cpu()).t().mm(torch.Tensor(embeddings.cpu())).cov()
-        #print(covariance_matrix)
-        #if not np.all(np.linalg.eigvals(covariance_matrix) > 0):
-        #    covariance_matrix = self.higham_regularization(covariance_matrix)
-            #inv_cov = self.higham_regularization(inv_cov)
-            ##inv_cov = self.logarithmic_transform(inv_cov)
-            #inv_cov = self.diagonal_loading(inv_cov)
-            ##inv_cov = self.cholesky_decomposition(inv_cov)
-        #    print(covariance_matrix)
-        #    print("Positive defined ")
-        #if self.is_pos_semidef(covariance_matrix.detach().numpy()):
-        #    print("Pos semidef")
-        #covariance_matrix = self.get_near_psd(covariance_matrix.detach().numpy())
-        #covariance_matrix = np.array(self.nearPSD(covariance_matrix.detach().numpy()))
-            #covariance_matrix = self.nearestPD(covariance_matrix)
-        #covariance_matrix = torch.cov(embeddings.T)
-        #print(covariance_matrix.shape)
-        self.inv_cov = torch.Tensor(covariance_matrix)
-        #covariance_matrix = covariance_matrix.detach().numpy()
-        if self.is_positive_definite(self.inv_cov):
-            print("The matrix is positive definite.")
-        elif self.is_positive_semidefinite(self.inv_cov):
-            print("The matrix is positive semi-definite.")
-        else:
-            print("The matrix is neither positive definite nor positive semi-definite.")
-        #    print("Covariance Matrix is Positive Semidefinite: ", self.is_positive_semidefinite(covariance_matrix.detach().numpy()))
-        #    are_equal = np.array_equal(self.nearestPD(covariance_matrix.detach().numpy()), covariance_matrix.detach().numpy())
-        #    print("Are equal nearest Positive definite: ", are_equal)
-        #
-        #    covariance_matrix = self.nearestPD(covariance_matrix)
-
-        # Calculate determinant
-        #det = np.linalg.det(covariance_matrix)
-        # Check if the determinant is non-zero
-        #if det != 0:
-        #    print("The matrix is non-singular (invertible).")
-        #    covariance_matrix = torch.Tensor(covariance_matrix)
-        #    self.inv_cov = covariance_matrix
-        #else:
-        #    print("The matrix is singular.")
-        #    covariance_matrix = torch.Tensor(covariance_matrix)
-        #    self.inv_cov =  torch.pinverse(covariance_matrix)
-        #    det = np.linalg.det(covariance_matrix)
-        #    print("Determinant: ", det)
-            
-        
-        #self.inv_cov  = np.linalg.pinv(covariance_matrix)
-        
-        #self.inv_cov = torch.tensor(covariance_matrix, dtype=torch.float)
-        #nearest_cov = covariance_matrix
-        #if self.is_positive_semidefinite(covariance_matrix):
-            ## added 
-        #    print("Not positive semidefite")
-            #nearest_cov = self.nearestPD(covariance_matrix)
-            #print(nearest_cov)
-
-        #self.inv_cov = torch.tensor(covariance_matrix, dtype=torch.float)
-        #print("Near Covariance Positive semi definite")
         
     @staticmethod
     def mahalanobis_distance(
@@ -275,75 +160,36 @@ class MahalanobisFilter:
         assert inv_covariance.shape[0] == inv_covariance.shape[1]
 
         x_mu = mean - values  # batch x features
-        # Same as dist = x_mu.t() * inv_covariance * x_mu batch wise
-        # x_mu shape (samples x embedding size), inv_covariance (embedding size x embedding size), dist shape ()
-        #dist = torch.einsum("im,mn,in->i", x_mu, inv_covariance, x_mu)
-        #dist = torch.sqrt(torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T)))
         dist = torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T))
         return dist.sqrt()
 
-    def mahalanobis_distance_v2(self, X):
-        return torch.tensor(self.ledoitwolf.mahalanobis(X))
 
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
-        #distances = self.mahalanobis_distance_v2(embeddings)
         mean_value = torch.mean(distances).item()
         std_deviation = torch.std(distances).item()
         print(distances)
         print("Mean predicted:", mean_value)
         print("Standard Deviation predicted:", std_deviation)
         return distances
-
-    def sample_and_calculate_stats(self, data, num_samples=10):
-        mean_list = []
-        covariance_list = []
-
-        for _ in range(num_samples):
-            # Randomly sample 5 rows with replacement
-            sampled_rows = np.random.choice(data.shape[0], int(data.shape[0]/4), replace=True)
-
-            # Calculate mean and covariance for the sampled rows
-            sample_mean = np.mean(data[sampled_rows, :], axis=0)
-            sample_covariance = np.cov(data[sampled_rows, :], rowvar=False)
-
-            # Append to the lists
-            mean_list.append(sample_mean)
-            covariance_list.append(sample_covariance)
-
-        return mean_list, covariance_list
-
-    def distribution_calibration(self, query, base_means, base_cov, k,alpha=0.21):
-        dist = []
-        for i in range(len(base_means)):
-            dist.append(np.linalg.norm(query-base_means[i]))
-        print(" query[np.newaxis, :]: ",  query[np.newaxis, :].shape)
-        print(" np.array(base_means)[index]: ",  np.array(base_means).shape)
-
-        index = np.argpartition(dist, k)[:k]
-        mean = np.concatenate([np.array(base_means)[index], query])
-        calibrated_mean = np.mean(mean, axis=0)
-        calibrated_cov = np.mean(np.array(base_cov)[index], axis=0)+alpha
-
-        return calibrated_mean, calibrated_cov
     
-    def fit_svd(self, x):
-        self.svd = TruncatedSVD(n_components=10)#int(x.shape[0]/4))
-        # prepare transform on dataset
+    def fit_svd(self, x, n_components=10):
+        self.svd = TruncatedSVD(n_components=n_components)
         self.svd.fit(x)
+
+    def fit_pca(self, x, n_components=10):
+        self.pca = PCA(n_components=n_components)
+        self.pca.fit(x)
         
     def run_filter(self,
         labeled_loader,
         unlabeled_loader,
         dir_filtered_root = None, get_background_samples=True,
-        num_classes:float=0, fit_func="regularization"):
+        num_classes:float=0):
 
         # 1. Get feature maps from the labeled set
         labeled_imgs = []
         labeled_labels = []
-
-        #all_imgs_context = []
-        #all_label_context = []
         
         back_imgs_context = []
         back_label_context = []
@@ -362,9 +208,6 @@ class MahalanobisFilter:
                 labeled_imgs += imgs_f
                 labeled_labels += labels_f
 
-                #all_imgs_context += imgs_f
-                #all_label_context += labels_f
-
                 if get_background_samples:
                     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
 
@@ -373,24 +216,16 @@ class MahalanobisFilter:
                         num_classes, self.use_sam_embeddings)
                     back_imgs_context += imgs_b
                     back_label_context += labels_b
-        #if len(labeled_imgs) < 100:
-        #    all_imgs_context = labeled_imgs + back_imgs_context
-        #else:
+
         all_imgs_context = labeled_imgs + back_imgs_context[:len(labeled_imgs)]
 
-
-
-        #print("Len labeled imgs: ", len(labeled_imgs))
         # labels start from index 1 to n, translate to start from 0 to n.
         labels = [int(i-1) for i in labeled_labels]
 
         # get all features maps using: the extractor + the imgs
         feature_maps_list = self.get_all_features(labeled_imgs)
         all_feature_maps_list = self.get_all_features(all_imgs_context)
-        #back_imgs_context = self.get_all_features(back_imgs_context)
 
-        #print("Feature map list: ", feature_maps_list)
-        #print("feature_maps_list imgs: ", feature_maps_list)
         #----------------------------------------------------------------
         if self.is_single_class:
             labels = np.zeros(len(feature_maps_list))
@@ -399,57 +234,42 @@ class MahalanobisFilter:
 
         # 2. Calculating the mean prototype for the labeled data
         #----------------------------------------------------------------
-        #support_features_imgs_1 = torch.stack(imgs_1)
-        #support_features_imgs_2 = torch.stack(imgs_2)
         support_features = torch.stack(feature_maps_list)
         all_support_features = torch.stack(all_feature_maps_list)        
-        #back_imgs_context = torch.stack(back_imgs_context)
 
         print("Support features shape: ", support_features.shape)
         print("all_support_features shape: ", all_support_features.shape)
-
-        # -----------------------------------------------------------
-        # NORMALIZE THE TENSORS
-        #base_means, base_cov = self.sample_and_calculate_stats(support_features.detach().numpy(), num_samples=10)
-        #pt = PowerTransformer(method='yeo-johnson', standardize=False)
-        #support_features = pt.fit_transform(support_features.detach().numpy())
-        #mean, cov = self.distribution_calibration(support_features, base_means, base_cov, k=2)
-        #sampled_data = np.random.multivariate_normal(mean=mean, cov=cov, size=200)
-        #support_features_aug = np.concatenate([support_features, sampled_data])
-        #support_features  = torch.tensor(support_features_aug)
-        #sampled_data = torch.tensor(sampled_data)
-        #all_support_features = torch.cat((all_support_features, sampled_data), dim=0)
-
-        # Save the tensor to the specified file
-        #torch.save(support_features, './tensor_foreground.pt')
-        #torch.save(back_imgs_context, './tensor_background.pt')
-
-        #support_features = torch.sigmoid(support_features)
-        #print("Support features mean: ", support_features.mean())
-        #print("Features size: ", support_features.shape)
 
         # 3. Calculating the sigma (covariance matrix), the distances 
         # with respect of the support features and get the threshold
         #----------------------------------------------------------------
         if self.is_single_class:
             
-            if fit_func == "ledoitwolf":
-                self.fit_ledoitwolf(support_features)
-            elif fit_func == "ledoitwolf_regularization":
-                self.fit_regularization_ledoitwolf(support_features, all_support_features)
-            elif fit_func == "regularization":
-                # Dimensionality reduction usign SVD
-                self.fit_svd(all_support_features.detach().numpy())
+            # Dimensionality reduction usign SVD for all the features including foreground and background
+            if self.dim_red == Constants_DimensionalityReductionMethod.SVD:
+                self.fit_svd(all_support_features.detach().numpy(), n_components=self.n_components)
                 all_support_features = torch.Tensor(self.svd.transform(all_support_features.detach().numpy()))
                 support_features = torch.Tensor(self.svd.transform(support_features.detach().numpy()))
+            elif self.dim_red == Constants_DimensionalityReductionMethod.PCA:
+                self.fit_pca(all_support_features.detach().numpy(), n_components=self.n_components)
+                all_support_features = torch.Tensor(self.pca.transform(all_support_features.detach().numpy()))
+                support_features = torch.Tensor(self.pca.transform(support_features.detach().numpy()))
 
-                # Estimate covariance and mean for mahalanobis 
-                self.fit_regularization(support_features, all_support_features)
+            # Estimate covariance and mean for mahalanobis 
+            self.fit_regularization(support_features, all_support_features)
 
+            # Calculate the distances of the support 
             distances = self.predict(support_features)
 
-            self.threshold = max(distances).item()
-            print("Threshold: ", self.threshold)
+            # Calculate threshold using IQR 
+            Q1 = np.percentile(distances.numpy(), 25)
+            Q3 = np.percentile(distances.numpy(), 75)
+            IQR = Q3 - Q1
+            threshold = 1.2 * IQR 
+            self.threshold = Q3 + threshold 
+            print("threshold: ", threshold)
+            print("Q1: ", Q1)
+            print("Q3: ", Q3)
 
         # go through each batch unlabeled
         distances_all = 0
@@ -481,13 +301,13 @@ class MahalanobisFilter:
             # get all features maps using: the extractor + the imgs
             featuremaps_list = self.get_all_features(unlabeled_imgs)
             featuremaps = torch.stack(featuremaps_list) # e.g. [387 x 512]
-            #torch.save(featuremaps, './tensor_unlabeled.pt')
-            # Reduce dimensionality selecting the top 10 singular values
-            featuremaps = torch.Tensor(self.svd.transform(featuremaps.detach().numpy()))
 
-            # ----------------------------------------------------
-            # Normalization
-            #featuremaps = torch.Tensor(pt.transform(featuremaps.detach().numpy()))
+            # Reduce dimensionality
+            if self.dim_red == Constants_DimensionalityReductionMethod.SVD:
+                featuremaps = torch.Tensor(self.svd.transform(featuremaps.detach().numpy()))
+            elif self.dim_red == Constants_DimensionalityReductionMethod.PCA:
+                featuremaps = torch.Tensor(self.pca.transform(featuremaps.detach().numpy()))
+
             # init buffer with distances
             support_set_distances = []
             distances = self.predict(featuremaps)
@@ -521,7 +341,6 @@ class MahalanobisFilter:
                 }
                 results.append(image_result)
                 count=count+1
-                print("Score.item(): ", score.item())
         print("Count: ", count)
 
         if len(results) > 0:
