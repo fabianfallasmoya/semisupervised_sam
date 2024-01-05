@@ -394,7 +394,7 @@ def selective_search(args, output_root):
         output_root, method=args.method
     )
 
-def mahalanobis_filter(args, is_single_class=True, output_root=None):
+def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="svd", n_components=10):
     """ Use sam and fewshot (maximum likelihood) to classify masks.
     Params
     :args -> parameters from bash.
@@ -426,7 +426,9 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None):
         timm_pretrained=args.load_pretrained,
         sam_model=sam,
         use_sam_embeddings=args.use_sam_embeddings,
-        is_single_class=is_single_class
+        is_single_class=is_single_class,
+        dim_red=args.dim_red,
+        n_components=n_components
     )
 
     # run filter using the backbone, sam, and ood
