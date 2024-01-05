@@ -71,7 +71,9 @@ class FASTSAM:
         img_pil = Image.fromarray(img)
 
         # run fastsam to create proposals to create segment everything
-        everything_results = self.model(img_pil, device=self.device, retina_masks=True, imgsz=1024, conf=0.1, iou=0.8,) #conf=0.4, iou=0.9,)
+        # conf=0.1 sets the minimum confidence threshold for object detection
+        # iou=0.8 sets the minimum intersection over union threshold for non-maximum suppression to filter out duplicate detections.
+        everything_results = self.model(img_pil, device=self.device, retina_masks=True, imgsz=1024, conf=0.1, iou=0.1,) #conf=0.4, iou=0.9,)
 
         # get the raw bounding boxes with the format: (x1, y1, x2, y2, conf, cls)
         results = everything_results[0].boxes
