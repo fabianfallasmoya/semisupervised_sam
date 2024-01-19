@@ -8,10 +8,7 @@ from engine.feature_extractor import MyFeatureExtractor
 from data import get_foreground, Transform_To_Models, get_background
 from tqdm import tqdm
 from numpy import linalg as la
-
-from sklearn.preprocessing import PowerTransformer
 from sklearn.decomposition import TruncatedSVD, PCA
-
 from utils import *
 
 class MahalanobisFilter:
@@ -71,11 +68,16 @@ class MahalanobisFilter:
         self.use_sam_embeddings = use_sam_embeddings
 
     def is_positive_semidefinite(self, covariance_matrix):
+        # We say that A is (positive) semidefinite, and write A >= 0. 
         eigenvalues, _ = np.linalg.eig(covariance_matrix)
         positive_semidefinite = all(eigenvalues >= 0)
         return positive_semidefinite
     
     def is_positive_definite(self, matrix):
+        # We say that A is (positive) definite, and write A > 0 
+
+        ## Cholesky factorization is a decomposition of a positive-definite matrix into the product of 
+        ## a lower triangular matrix and its conjugate transpose. 
         try:
             np.linalg.cholesky(matrix)
             return True  # Cholesky decomposition succeeded, matrix is positive definite
@@ -84,6 +86,7 @@ class MahalanobisFilter:
 
     def estimate_covariance(self, examples, rowvar=False, inplace=False):
         """
+        From Improve Few Shot Classification
         Function based on the suggested implementation of Modar Tensai
         and his answer as noted in: https://discuss.pytorch.org/t/covariance-and-gradient-support/16217/5
 
@@ -120,18 +123,34 @@ class MahalanobisFilter:
         examples_t = examples.t()
         return factor * examples.matmul(examples_t).squeeze()
 
-    def fit_regularization(self, examples, context_features=None):
-        self.mean = torch.mean(examples, axis=0)
+    def fit_normal(self, support_set):
+        ## Estimate the mean and covariance matrix for mahalanobis distance
+        ## We obtain the pseudoinverse of the covariance matrix because of singular matrix.
+        self.mean = torch.mean(support_set, axis=0)
+        covariance_matrix = self.estimate_covariance(support_set)
+        self.inv_cov = torch.pinverse(covariance_matrix)
+        if self.is_positive_definite(self.inv_cov):
+            print("The matrix is positive definite.")
+        elif self.is_positive_semidefinite(self.inv_cov):
+            print("The matrix is positive semi-definite.")
+        else:
+            print("The matrix is neither positive definite nor positive semi-definite.")
+
+    def fit_regularization(self, support_set, beta=1, context_features=None):
+        # Based on the paper https://github.com/plai-group/simple-cnaps
+        ## Lambda is the influence of the covariance matrix of the support set and context features.
+        ## Beta is the influence of identical matrix. 
+        self.mean = torch.mean(support_set, axis=0)
         
-        covariance_matrix = self.estimate_covariance(examples) #self.estimate_covariance(examples)
+        covariance_matrix = self.estimate_covariance(support_set) #self.estimate_covariance(examples)
         if context_features != None:
             context_covariance_matrix = self.estimate_covariance(context_features) #self.estimate_covariance(context_features)
 
-        lambda_k_tau = (examples.size(0) / (examples.size(0) + 1))
+        lambda_k_tau = (support_set.size(0) / (support_set.size(0) + 1))
 
         self.inv_cov = torch.inverse((lambda_k_tau * covariance_matrix) + ((1 - lambda_k_tau) * context_covariance_matrix) \
-                    + torch.eye(examples.size(1), examples.size(1)))
-        
+                    + (beta * torch.eye(support_set.size(1), support_set.size(1))))
+
         if self.is_positive_definite(self.inv_cov):
             print("The matrix is positive definite.")
         elif self.is_positive_semidefinite(self.inv_cov):
@@ -163,7 +182,6 @@ class MahalanobisFilter:
         dist = torch.diagonal(torch.mm(torch.mm(x_mu, inv_covariance), x_mu.T))
         return dist.sqrt()
 
-
     def predict(self, embeddings):
         distances = self.mahalanobis_distance(embeddings, self.mean, self.inv_cov)
         mean_value = torch.mean(distances).item()
@@ -185,7 +203,8 @@ class MahalanobisFilter:
         labeled_loader,
         unlabeled_loader,
         dir_filtered_root = None, get_background_samples=True,
-        num_classes:float=0):
+        num_classes:float=0, 
+        mahalanobis_method="regularization", beta=1):
 
         # 1. Get feature maps from the labeled set
         labeled_imgs = []
@@ -207,7 +226,7 @@ class MahalanobisFilter:
                 )
                 labeled_imgs += imgs_f
                 labeled_labels += labels_f
-
+                
                 if get_background_samples:
                     ss = cv2.ximgproc.segmentation.createSelectiveSearchSegmentation()
 
@@ -217,28 +236,36 @@ class MahalanobisFilter:
                     back_imgs_context += imgs_b
                     back_label_context += labels_b
 
-        all_imgs_context = labeled_imgs + back_imgs_context[:len(labeled_imgs)]
-
         # labels start from index 1 to n, translate to start from 0 to n.
         labels = [int(i-1) for i in labeled_labels]
 
         # get all features maps using: the extractor + the imgs
-        feature_maps_list = self.get_all_features(labeled_imgs)
-        all_feature_maps_list = self.get_all_features(all_imgs_context)
+        all_labeled_features = self.get_all_features(labeled_imgs)
+        all_background_features = self.get_all_features(back_imgs_context)
+
+        all_context_features = all_labeled_features + all_background_features[:len(all_labeled_features)]
+        all_features = all_labeled_features + all_background_features
 
         #----------------------------------------------------------------
         if self.is_single_class:
-            labels = np.zeros(len(feature_maps_list))
+            labels = np.zeros(len(all_labeled_features))
         else:
             labels = np.array(labels)
 
         # 2. Calculating the mean prototype for the labeled data
         #----------------------------------------------------------------
-        support_features = torch.stack(feature_maps_list)
-        all_support_features = torch.stack(all_feature_maps_list)        
+        all_labeled_features = torch.stack(all_labeled_features)
+        all_context_features = torch.stack(all_context_features)        
+        all_features = torch.stack(all_features)        
 
-        print("Support features shape: ", support_features.shape)
-        print("all_support_features shape: ", all_support_features.shape)
+        dim_original = all_features.shape[0]
+        #torch.save(support_features, "support_features.pt")
+        #torch.save(all_support_features, "all_support_features.pt")
+        #torch.save(all_features_maps_list, "all_features_maps_list.pt")
+
+        print("Support features shape: ", all_labeled_features.shape)
+        print("all_support_features shape: ", all_context_features.shape)
+        print("all_features_maps_list shape: ", all_features.shape)
 
         # 3. Calculating the sigma (covariance matrix), the distances 
         # with respect of the support features and get the threshold
@@ -247,25 +274,29 @@ class MahalanobisFilter:
             
             # Dimensionality reduction usign SVD for all the features including foreground and background
             if self.dim_red == Constants_DimensionalityReductionMethod.SVD:
-                self.fit_svd(all_support_features.detach().numpy(), n_components=self.n_components)
-                all_support_features = torch.Tensor(self.svd.transform(all_support_features.detach().numpy()))
-                support_features = torch.Tensor(self.svd.transform(support_features.detach().numpy()))
+                self.fit_svd(all_features.detach().numpy(), n_components=self.n_components)
+                all_labeled_features = torch.Tensor(self.svd.transform(all_labeled_features.detach().numpy()))
+                all_context_features = torch.Tensor(self.svd.transform(all_context_features.detach().numpy()))
             elif self.dim_red == Constants_DimensionalityReductionMethod.PCA:
-                self.fit_pca(all_support_features.detach().numpy(), n_components=self.n_components)
-                all_support_features = torch.Tensor(self.pca.transform(all_support_features.detach().numpy()))
-                support_features = torch.Tensor(self.pca.transform(support_features.detach().numpy()))
-
+                self.fit_pca(all_features.detach().numpy(), n_components=self.n_components)
+                all_labeled_features = torch.Tensor(self.pca.transform(all_labeled_features.detach().numpy()))
+                all_context_features = torch.Tensor(self.pca.transform(all_context_features.detach().numpy()))
+            
             # Estimate covariance and mean for mahalanobis 
-            self.fit_regularization(support_features, all_support_features)
+            if mahalanobis_method == "regularization":
+                self.fit_regularization(all_labeled_features, beta=beta, context_features=all_context_features)
+                print("Beta: ",  beta)
+            else:
+                self.fit_normal(all_labeled_features)
 
             # Calculate the distances of the support 
-            distances = self.predict(support_features)
+            distances = self.predict(all_labeled_features)
 
             # Calculate threshold using IQR 
             Q1 = np.percentile(distances.numpy(), 25)
             Q3 = np.percentile(distances.numpy(), 75)
             IQR = Q3 - Q1
-            threshold = 1.2 * IQR 
+            threshold = 1.5 * IQR #1.2 * IQR 
             self.threshold = Q3 + threshold 
             print("threshold: ", threshold)
             print("Q1: ", Q1)
@@ -349,6 +380,19 @@ class MahalanobisFilter:
             if os.path.isfile(results_file):
                 os.remove(results_file)
             json.dump(results, open(results_file, 'w'), indent=4)
+        
+        stats_count = {
+            "labeled": int(all_labeled_features.shape[0]), 
+            "dimension": int(dim_original),
+            "reduced_dimension": int(all_labeled_features.shape[1]), 
+            "all": int(all_features.shape[0]), 
+            "context": int(all_context_features.shape[0]),
+            "threshold": float(self.threshold),
+            "max": float(np.max(distances.numpy()))}
+        
+        file_name_stats = f"{dir_filtered_root}/stats.json"
+        with open(file_name_stats, 'w') as file:
+            file.write(json.dumps(stats_count))
 
     def get_all_features(self, images):
         """

@@ -109,6 +109,8 @@ def get_parameters():
     # Dimensionality reduction parameters
     parser.add_argument('--dim-red', type=str, default="svd")
     parser.add_argument('--n-components', type=int, default=10)
+    parser.add_argument('--beta', type=int, default=1)
+    parser.add_argument('--mahalanobis', type=str, default="normal")
 
     return parser.parse_args()
 

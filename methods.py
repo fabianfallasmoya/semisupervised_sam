@@ -394,7 +394,7 @@ def selective_search(args, output_root):
         output_root, method=args.method
     )
 
-def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="svd", n_components=10):
+def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="svd", n_components=10, mahalanobis_method="regularization", beta=1):
     """ Use sam and fewshot (maximum likelihood) to classify masks.
     Params
     :args -> parameters from bash.
@@ -428,13 +428,14 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="sv
         use_sam_embeddings=args.use_sam_embeddings,
         is_single_class=is_single_class,
         dim_red=args.dim_red,
-        n_components=n_components
+        n_components=args.n_components
     )
 
     # run filter using the backbone, sam, and ood
     mahalanobis_filter.run_filter(
         labeled_loader, test_loader, 
-        dir_filtered_root=output_root
+        dir_filtered_root=output_root,
+        mahalanobis_method=mahalanobis_method, beta=beta
     )
 
     # STEP 3: evaluate results
@@ -539,6 +540,7 @@ if __name__ == '__main__':
     elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_PTMAP:
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_MAHALANOBIS:
-        mahalanobis_filter(args, is_single_class=True, output_root=output_root)
+        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}_{args.mahalanobis}_beta_{args.beta}@{args.timm_model}@{args.sam_proposal}@{args.dim_red}_{args.n_components}"
+        mahalanobis_filter(args, is_single_class=True, output_root=output_root, mahalanobis_method=args.mahalanobis, beta=args.beta)
     elif args.method == Constants_MainMethod.FEWSHOT_SUBSPACES:
         subspaces_filter(args, is_single_class=True, output_root=output_root)
