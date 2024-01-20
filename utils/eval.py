@@ -2,6 +2,7 @@ import os
 import json
 import numpy as np
 import torch
+import json
 from PIL import Image, ImageDraw
 from tqdm import tqdm
 import torchvision
@@ -156,11 +157,55 @@ def save_inferences_twoclasses(
             os.remove(filepath)
         json.dump(results, open(filepath, 'w'), indent=4)
 
+def calculate_precision(coco_eval, iou_treshold_index, img_id_size):
+    imgs = coco_eval.evalImgs
+    print("Images len: ", len(imgs))
+    count = 0
+    fp_total = 0
+    tp_total = 0 
+    detection_ids = 0 
+    ground_ids = 0 
+    valid_fp_tp = 0
+
+    for img in imgs:
+        if img == None:
+            continue 
+        if count == img_id_size:
+            break 
+        else:
+            detection_ignore = img["dtIgnore"][iou_treshold_index]
+            mask = ~detection_ignore
+            tp = (img["dtMatches"][iou_treshold_index][mask] > 0).sum()
+            fp = (img["dtMatches"][iou_treshold_index][mask] == 0).sum()
+
+            gtIds_len = len(img['gtIds'])
+            dtIds_len = len(img['dtIds'])
+ 
+            count = count+1
+
+            fp_total = fp_total + fp
+            tp_total = tp_total + tp
+            detection_ids = detection_ids + dtIds_len
+            ground_ids = ground_ids + gtIds_len
+            valid_fp_tp = valid_fp_tp + fp+tp
+
+    #print("Amount of images:    ", img_id_size)
+    #print("Len of detection:    ", detection_ids)
+    #print("Len of ground truth: ", ground_ids)
+    #print("True Positive:       ", tp_total)
+    #print("False Positive:      ", fp_total)
+    return {
+        "amount_imgs": int(img_id_size), 
+        "detection_ids": int(detection_ids), 
+        "ground_truth_ids": int(ground_ids), 
+        "tp": int(tp_total), "fp": int(fp_total), 
+        "iou_treshold_index": int(iou_treshold_index),
+        "p_dt_gt": float(detection_ids/ground_ids),
+        "p_t_gt": float(tp_total/ground_ids)}
 
 def eval_sam(coco_gt, image_ids, pred_json_path, output_root, method="xyz", number=None):
     # load results in COCO evaluation tool
     coco_pred = coco_gt.loadRes(pred_json_path)
-
     # run COCO evaluation
     print('BBox')
     coco_eval = COCOeval(coco_gt, coco_pred, 'bbox')
@@ -168,6 +213,13 @@ def eval_sam(coco_gt, image_ids, pred_json_path, output_root, method="xyz", numb
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
+
+    stats_count = calculate_precision(coco_eval, 0, len(image_ids))
+    print("stats count: ", stats_count)
+    file_name_stats = f"{output_root}/stats_{method}.json"
+    with open(file_name_stats, 'w') as file:
+        file.write(json.dumps(stats_count))
+    
     # write results into a file
     if number is None:
         file_name = f"{output_root}/mAP_{method}.txt"
