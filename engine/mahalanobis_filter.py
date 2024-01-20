@@ -1,6 +1,7 @@
 import os
 import cv2
 import json
+import random
 import torch
 import numpy as np
 
@@ -243,7 +244,11 @@ class MahalanobisFilter:
         all_labeled_features = self.get_all_features(labeled_imgs)
         all_background_features = self.get_all_features(back_imgs_context)
 
-        all_context_features = all_labeled_features + all_background_features[:len(all_labeled_features)]
+        # Selecting random 1000 background features for dimensionality reduction
+        if len(all_background_features) > 1000:
+            all_background_features = random.sample(all_background_features, 1000)
+
+        all_context_features = all_labeled_features + random.sample(all_background_features, len(all_labeled_features))
         all_features = all_labeled_features + all_background_features
 
         #----------------------------------------------------------------
