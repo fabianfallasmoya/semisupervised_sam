@@ -12,7 +12,7 @@ class FASTSAM:
         self.use_sam_embeddings = False
         
         # Config for Fast SAM model for object proposals
-        self.checkpoint = 'weights/FastSAM.pt'
+        self.checkpoint = '/content/drive/MyDrive/Agro-Pineapples/Colab/weights/FastSAM-x.pt'#'weights/FastSAM.pt'
         self.model = FastSAM(self.checkpoint)
         
         # ------------------------------------------------

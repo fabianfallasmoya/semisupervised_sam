@@ -13,7 +13,7 @@
             "justMyCode": false,
             "env": {"CUDA_VISIBLE_DEVICES": "0"},
             "args": [
-                "--root", "../../../share/semi_supervised/pineapples/PINEAPPLES2_5mts_nosplits",//"C:/Users/dnnxl/Downloads/pineapples_5m/pineapples_5m_multispectral", 
+                "--root", "/content/drive/MyDrive/Agro-Pineapples/pineapples_5m_multispectral",// "../../../share/semi_supervised/pineapples/PINEAPPLES2_5mts_nosplits",//"C:/Users/dnnxl/Downloads/pineapples_5m/pineapples_5m_multispectral", 
                 "--num-classes","0",
                 "--load-pretrained",
                 "--timm-model", "vit_base_patch16_clip_224.openai_ft_in1k", //swinv2_base_window8_256.ms_in1k tf_efficientnet_l2.ns_jft_in1k_475 vit_base_patch16_clip_224.openai_ft_in1k
@@ -41,7 +41,7 @@
                 "--ood-histogram-bins", "15", //
                 "--use-sam-embeddings", "0",
                 "--method", "fewshotMahalanobis", // ss samAlone fewshot1 fewshot2 fewshotOOD fewshotRelationalNetwork fewshotMatching fewshotMahalanobis 
-                "--device", "cpu",
+                "--device", "gpu",
                 "--sam-proposal", "fastsam", // sam fastsam mobilesam
                 "--dim-red", "svd", // Method for dimensionality reduction: svd, pcs
                 "--n-components", "10" // Number of components for dimensionality reduction

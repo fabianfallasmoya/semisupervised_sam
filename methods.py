@@ -509,6 +509,8 @@ def subspaces_filter(args, is_single_class=True, output_root=None):
 
 if __name__ == '__main__':
     args = get_parameters()
+    root_output = "/content/drive/MyDrive/Agro-Pineapples/output/" #"./output/"
+
 
     if not args.numa == -1:
         throttle_cpu(args.numa)
@@ -516,14 +518,14 @@ if __name__ == '__main__':
         seed_everything(args.seed)
 
     if args.use_sam_embeddings:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed@{args.sam_proposal}"
+        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@samEmbed@{args.sam_proposal}"
     else:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}@{args.sam_proposal}"
+        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.timm_model}@{args.sam_proposal}"
     if args.method == Constants_MainMethod.SELECTIVE_SEARCH:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
+        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         selective_search(args, output_root)
     if args.method == Constants_MainMethod.ALONE:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
+        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         sam_simple(args, output_root)
     elif args.method == Constants_MainMethod.FEWSHOT_1_CLASS:
         few_shot(args, is_single_class=True, output_root=output_root, fewshot_method=args.method)
@@ -540,7 +542,7 @@ if __name__ == '__main__':
     elif args.method == Constants_MainMethod.FEWSHOT_2_CLASSES_PTMAP:
         few_shot(args, is_single_class=False, output_root=output_root, fewshot_method=args.method)
     elif args.method == Constants_MainMethod.FEWSHOT_MAHALANOBIS:
-        output_root = f"./output/{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}_{args.mahalanobis}_beta_{args.beta}@{args.timm_model}@{args.sam_proposal}@{args.dim_red}_{args.n_components}"
+        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}_{args.mahalanobis}_beta_{args.beta}@{args.timm_model}@{args.sam_proposal}@{args.dim_red}_{args.n_components}"
         mahalanobis_filter(args, is_single_class=True, output_root=output_root, mahalanobis_method=args.mahalanobis, beta=args.beta)
     elif args.method == Constants_MainMethod.FEWSHOT_SUBSPACES:
         subspaces_filter(args, is_single_class=True, output_root=output_root)
