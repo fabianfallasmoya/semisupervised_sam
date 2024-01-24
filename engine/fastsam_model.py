@@ -80,7 +80,7 @@ class FASTSAM:
 
         for bbox, score in zip(results.data, results.conf):
             # get the raw bounding boxes using the first 4: (x1, y1, x2, y2, conf, cls)
-            xyxy = bbox.numpy()[:4]
+            xyxy = bbox.cpu().numpy()[:4]
             xywh = torchvision.ops.box_convert(
                     torch.tensor(xyxy), in_fmt='xyxy', out_fmt='xywh')
             
