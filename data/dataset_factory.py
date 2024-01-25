@@ -208,13 +208,13 @@ def create_dataset_ood(name, root, splits=('train'),
                 assert total_samples <= len(ids), "size mismatch"
 
                 # get ids
-                root_ids = root / f"seed{seed}_{labeled_samples}_{unlabeled_samples}"
-                ids_labeled = root_ids / "labeled.txt"
-                ids_test = root_ids / "test.txt"
-                ids_full_labeled = root_ids / "full_labeled.txt"
-                ids_unlabeled = root_ids / "unlabeled.txt"
+                root_ids = f"./seeds/{str(root).split('/')[-1]}/seed{seed}_{labeled_samples}_{unlabeled_samples}"
+                ids_labeled = f"{root_ids}/labeled.txt"
+                ids_test = f"{root_ids}/test.txt"
+                ids_full_labeled = f"{root_ids}/full_labeled.txt"
+                ids_unlabeled = f"{root_ids}/unlabeled.txt"
 
-                if not ids_labeled.exists():
+                if not os.path.isfile(ids_labeled):
                     if seed is not None:
                         all_idx = random.Random(seed).sample(ids, k=total_samples)
                         # get labeled, test, unlabeled, and full labeled sets.
@@ -230,7 +230,8 @@ def create_dataset_ood(name, root, splits=('train'),
                         unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
 
                     # create folder
-                    ids_labeled.parent.mkdir(exist_ok=True, parents=True)
+                    #ids_labeled.parent.mkdir(exist_ok=True, parents=True)
+                    Path(root_ids).mkdir(parents=True, exist_ok=True)
                     
                     # save files    
                     with open(ids_labeled, "wb") as fp:
