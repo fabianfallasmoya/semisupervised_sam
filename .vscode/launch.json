@@ -35,13 +35,13 @@
                 "--numa","-1",
                 "--output-folder","PINEAPPLES2_5mts_nosplits",
                 "--run-name","temp",
-                "--seed","0",
+                "--seed","10",
                 "--sam-model","h",
                 "--ood-thresh", "0.8",
                 "--ood-histogram-bins", "15", //
                 "--use-sam-embeddings", "0",
-                "--method", "fewshotMahalanobis", // ss samAlone fewshot1 fewshot2 fewshotOOD fewshotRelationalNetwork fewshotMatching fewshotMahalanobis 
-                "--device", "cuda",
+                "--method", "samAlone", // ss samAlone fewshot1 fewshot2 fewshotOOD fewshotRelationalNetwork fewshotMatching fewshotMahalanobis 
+                "--device", "cpu",//"cuda",
                 "--sam-proposal", "fastsam", // sam fastsam mobilesam
                 "--dim-red", "svd", // Method for dimensionality reduction: svd, pcs
                 "--n-components", "10" // Number of components for dimensionality reduction

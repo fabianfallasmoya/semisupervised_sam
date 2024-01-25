@@ -256,8 +256,9 @@ def create_datasets_and_loaders(args):
     """
     datasets = create_dataset_ood(
         args.dataset, args.root, 
+        seed=args.seed,
         labeled_samples=args.ood_labeled_samples,
-        unlabeled_samples=args.ood_unlabeled_samples
+        unlabeled_samples=args.ood_unlabeled_samples 
     )
     dataset_label = datasets[0]
     dataset_test = datasets[1]

@@ -4,6 +4,7 @@ Copyright 2020 Ross Wightman
 import os
 import json
 import numpy as np
+import pickle
 from copy import deepcopy
 from collections import OrderedDict
 from pathlib import Path
@@ -201,27 +202,55 @@ def create_dataset_ood(name, root, splits=('train'),
                 with open(ann_file, 'r') as f4:
                     new_unlabeled = json.load(f4)
 
-
                 # get all image ids 
                 ids = [item['id'] for item in new_labeled['images']]
                 total_samples = labeled_samples + unlabeled_samples
                 assert total_samples <= len(ids), "size mismatch"
 
                 # get ids
-                if seed is not None:
-                    all_idx = random.Random(seed).sample(ids, k=total_samples)
-                    # get labeled, test, unlabeled, and full labeled sets.
-                    labeled_idx = random.Random(seed).sample(all_idx, k=labeled_samples)
-                    test_idx = [i for i in all_idx if i not in labeled_idx]
+                root_ids = root / f"seed{seed}_{labeled_samples}_{unlabeled_samples}"
+                ids_labeled = root_ids / "labeled.txt"
+                ids_test = root_ids / "test.txt"
+                ids_full_labeled = root_ids / "full_labeled.txt"
+                ids_unlabeled = root_ids / "unlabeled.txt"
 
-                    full_labeled_idx = [i for i in ids if i not in test_idx]
-                    unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
+                if not ids_labeled.exists():
+                    if seed is not None:
+                        all_idx = random.Random(seed).sample(ids, k=total_samples)
+                        # get labeled, test, unlabeled, and full labeled sets.
+                        labeled_idx = random.Random(seed).sample(all_idx, k=labeled_samples)
+                        test_idx = [i for i in all_idx if i not in labeled_idx]
+                        full_labeled_idx = [i for i in ids if i not in test_idx]
+                        unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]                        
+                    else:
+                        all_idx = random.sample(ids, k=total_samples)
+                        labeled_idx = random.sample(all_idx, k=labeled_samples)
+                        test_idx = [i for i in all_idx if i not in labeled_idx]
+                        full_labeled_idx = [i for i in ids if i not in test_idx]
+                        unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
+
+                    # create folder
+                    ids_labeled.parent.mkdir(exist_ok=True, parents=True)
+                    
+                    # save files    
+                    with open(ids_labeled, "wb") as fp:
+                            pickle.dump(labeled_idx, fp)
+                    with open(ids_test, "wb") as fp:
+                            pickle.dump(test_idx, fp)
+                    with open(ids_full_labeled, "wb") as fp:
+                            pickle.dump(full_labeled_idx, fp)
+                    with open(ids_unlabeled, "wb") as fp:
+                            pickle.dump(unlabeled_idx, fp)
                 else:
-                    all_idx = random.sample(ids, k=total_samples)
-                    labeled_idx = random.sample(all_idx, k=labeled_samples)
-                    test_idx = [i for i in all_idx if i not in labeled_idx]
-                    full_labeled_idx = [i for i in ids if i not in test_idx]
-                    unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
+                    #load pickle files
+                    with open(ids_labeled, "rb") as fp:
+                            labeled_idx = pickle.load(fp)
+                    with open(ids_test, "rb") as fp:
+                            test_idx = pickle.load(fp)
+                    with open(ids_full_labeled, "rb") as fp:
+                            full_labeled_idx = pickle.load(fp)
+                    with open(ids_unlabeled, "rb") as fp:
+                            unlabeled_idx = pickle.load(fp)
 
                 # keep just the necessary ids
                 new_labeled['images'] = [i for i in new_labeled['images'] if i['id'] in labeled_idx]
