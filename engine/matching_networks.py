@@ -162,6 +162,8 @@ class MatchingNetworks(FewShot):
 
         # Compute query log probabilities based on cosine similarity to support instances
         # and support labels
+        self.one_hot_support_labels = self.one_hot_support_labels.to(self.device)  # Move the tensor to the CUDA device
+
         log_probabilities = (
             similarity_matrix.mm(self.one_hot_support_labels) + 1e-6
         ).log()
