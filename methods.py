@@ -525,7 +525,7 @@ if __name__ == '__main__':
         output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
         selective_search(args, output_root)
     if args.method == Constants_MainMethod.ALONE:
-        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}"
+        output_root = f"{root_output}{args.output_folder}/seed{args.seed}/{args.ood_labeled_samples}_{args.ood_unlabeled_samples}/{args.method}@{args.sam_proposal}"
         sam_simple(args, output_root)
     elif args.method == Constants_MainMethod.FEWSHOT_1_CLASS:
         few_shot(args, is_single_class=True, output_root=output_root, fewshot_method=args.method)
