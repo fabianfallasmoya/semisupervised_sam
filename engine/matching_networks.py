@@ -182,6 +182,7 @@ class MatchingNetworks(FewShot):
         """
         # Since the LSTM is bidirectional, hidden_state is of the shape
         # [number_of_support_images, 2 * feature_dimension]
+        support_features = support_features.to(self.device)  # Move the tensor to the CUDA device
         hidden_state = self.support_features_encoder(support_features.unsqueeze(0))[
             0
         ].squeeze(0)
