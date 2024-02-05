@@ -28,7 +28,7 @@
                 "--batch-size-labeled","10",
                 "--batch-size-unlabeled", "10",
                 "--ood-labeled-samples", "1",
-                "--ood-unlabeled-samples", "10",
+                "--ood-unlabeled-samples", "1",
                 "--aug-method","rand_augmentation",
                 "--img-resolution", "1024",
                 "--new-sample-size", "256", 
@@ -44,7 +44,9 @@
                 "--device", "cpu",//"cuda",
                 "--sam-proposal", "fastsam", // sam fastsam mobilesam
                 "--dim-red", "svd", // Method for dimensionality reduction: svd, pcs
-                "--n-components", "10" // Number of components for dimensionality reduction
+                "--n-components", "10", // Number of components for dimensionality reduction
+                "--mahalanobis", "regularization", // use the normal or regularization mahalanobis
+                "--beta", "0" // Mahalanobis parameter for beta
             ]
         }
     ]
