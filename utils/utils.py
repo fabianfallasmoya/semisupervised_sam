@@ -111,6 +111,8 @@ def get_parameters():
     parser.add_argument('--n-components', type=int, default=10)
     parser.add_argument('--beta', type=int, default=1)
     parser.add_argument('--mahalanobis', type=str, default="normal")
+    parser.add_argument('--batch-size-validation', type=int, default=4)
+    parser.add_argument('--ood-validation-samples', type=int, default=10)
 
     return parser.parse_args()
 
@@ -258,12 +260,14 @@ def create_datasets_and_loaders(args):
         args.dataset, args.root, 
         seed=args.seed,
         labeled_samples=args.ood_labeled_samples,
-        unlabeled_samples=args.ood_unlabeled_samples 
+        unlabeled_samples=args.ood_unlabeled_samples,
+        validation_samples=args.ood_validation_samples,
     )
     dataset_label = datasets[0]
     dataset_test = datasets[1]
     dataset_unlabel = datasets[2]
     dataset_full_label = datasets[3]
+    dataset_validation = datasets[4]
 
     # create data loaders
     trans_numpy = transforms_toNumpy()
@@ -300,5 +304,13 @@ def create_datasets_and_loaders(args):
         transform_fn = trans_numpy,
         normalize_img=normalize_imgs
     )
-    return loader_label, loader_test, loader_unlabel, loader_full_label
+    loader_validation = create_loader(
+        dataset_validation,
+        img_resolution=args.img_resolution,
+        batch_size=args.batch_size_validation,
+        is_training=False,
+        transform_fn = trans_numpy,
+        normalize_img=normalize_imgs
+    )
+    return loader_label, loader_test, loader_unlabel, loader_full_label, loader_validation
     

@@ -56,7 +56,7 @@ def save_inferences_singleclass(
         fs_model, unlabeled_loader,
         sam_model, filepath,
         trans_norm,
-        use_sam_embeddings
+        use_sam_embeddings, val=False
     ):
     fs_model.backbone.use_fc = False
     
@@ -104,10 +104,16 @@ def save_inferences_singleclass(
         
     if len(results) > 0:
         # write output
-        f_ = f"{filepath}/bbox_results_std{idx_1}.json"
-        if os.path.exists(f_):
-            os.remove(f_)
-        json.dump(results, open(f_, 'w'), indent=4)
+        if val:
+            f_ = f"{filepath}/bbox_results_val_std{idx_1}.json"
+            if os.path.exists(f_):
+                os.remove(f_)
+            json.dump(results, open(f_, 'w'), indent=4)
+        else:
+            f_ = f"{filepath}/bbox_results_std{idx_1}.json"
+            if os.path.exists(f_):
+                os.remove(f_)
+            json.dump(results, open(f_, 'w'), indent=4)
 
 def save_inferences_twoclasses(
     fs_model, unlabeled_loader, sam_model, 
@@ -203,7 +209,7 @@ def calculate_precision(coco_eval, iou_treshold_index, img_id_size):
         "p_dt_gt": float(detection_ids/ground_ids),
         "p_t_gt": float(tp_total/ground_ids)}
 
-def eval_sam(coco_gt, image_ids, pred_json_path, output_root, method="xyz", number=None):
+def eval_sam(coco_gt, image_ids, pred_json_path, output_root, method="xyz", number=None, val=False):
     # load results in COCO evaluation tool
     coco_pred = coco_gt.loadRes(pred_json_path)
     # run COCO evaluation
@@ -216,15 +222,24 @@ def eval_sam(coco_gt, image_ids, pred_json_path, output_root, method="xyz", numb
 
     stats_count = calculate_precision(coco_eval, 0, len(image_ids))
     print("stats count: ", stats_count)
-    file_name_stats = f"{output_root}/stats_{method}.json"
+    val_str = ""
+    if val:
+        val_str = "_val"
+    file_name_stats = f"{output_root}/stats{val_str}_{method}.json"
     with open(file_name_stats, 'w') as file:
         file.write(json.dumps(stats_count))
     
     # write results into a file
     if number is None:
-        file_name = f"{output_root}/mAP_{method}.txt"
+        if val:
+            file_name = f"{output_root}/mAP_val_{method}.txt"
+        else:
+            file_name = f"{output_root}/mAP_{method}.txt"
     else:
-        file_name = f"{output_root}/mAP_{method}_std{number}.txt"
+        if val:
+            file_name = f"{output_root}/mAP_val_{method}_std{number}.txt"
+        else:
+            file_name = f"{output_root}/mAP_{method}_std{number}.txt"
     with open(file_name, 'w') as file:
         for i in coco_eval.stats:
             file.write(f"{str(i)}\n")

@@ -69,7 +69,7 @@ class OOD_filter_neg_likelihood:
         unlabeled_loader,  
         dir_filtered_root = None, 
         ood_thresh = 0.0, 
-        ood_hist_bins = 15):
+        ood_hist_bins = 15, val=False):
         """
         Params
         :labeled_loader: path for the first data bunch, labeled data
@@ -233,7 +233,10 @@ class OOD_filter_neg_likelihood:
 
             if len(results) > 0:
                 # write output
-                results_file = f"{dir_filtered_root}/bbox_results_std{idx_}.json"
+                if val:
+                    results_file = f"{dir_filtered_root}/bbox_results_val_std{idx_}.json"
+                else:
+                    results_file = f"{dir_filtered_root}/bbox_results_std{idx_}.json"
                 if os.path.isfile(results_file):
                     os.remove(results_file)
                 json.dump(results, open(results_file, 'w'), indent=4)

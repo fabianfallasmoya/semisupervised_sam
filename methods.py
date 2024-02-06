@@ -54,7 +54,7 @@ def sam_simple(args, output_root):
     """
     # STEP 1: create data loaders
     # the loaders will load the images in numpy arrays
-    label_l,test_l,unlabeled_l,full_label_l = create_datasets_and_loaders(args)
+    label_l,test_l,unlabeled_l,full_label_l, validation_l = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
@@ -63,7 +63,8 @@ def sam_simple(args, output_root):
     save_loader_to_json(test_l, output_root, filename="test")
     save_loader_to_json(unlabeled_l, output_root, filename="unlabel")
     save_loader_to_json(full_label_l, output_root, filename="full_label")
-    
+    save_loader_to_json(validation_l, output_root, filename="validation")
+
     # STEP 2: create an SAM instance
     if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
         sam = MobileSAM(args)
@@ -100,11 +101,12 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     """
     # STEP 1: create data loaders
     # the loaders will load the images in numpy arrays
-    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
+    labeled_loader, test_loader, _, _, validation_loader = create_datasets_and_loaders(args)
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
     save_loader_to_json(test_loader, output_root, filename="test")
+    save_loader_to_json(validation_loader, output_root, filename="validation")
 
     # STEP 2: create an SAM instance
     if args.sam_proposal == Constants_SamMethod.MOBILE_SAM:
@@ -224,6 +226,12 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
             output_root, trans_norm,
             args.use_sam_embeddings
         )
+
+        save_inferences_singleclass(
+            fs_model, validation_loader, sam, 
+            output_root, trans_norm,
+            args.use_sam_embeddings, val=True
+        )
     else:
         save_inferences_twoclasses(
             fs_model, test_loader, sam, 
@@ -240,17 +248,30 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
         coco_gt = COCO(gt_eval_path)
         image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
         res_data = f"{output_root}/bbox_results_std{idx_}.json"
-
         eval_sam(
             coco_gt, image_ids, res_data, 
             output_root, method=args.method,
             number=idx_
         )
+
+        # Validation 
+        gt_val_path = f"{output_root}/validation.json"
+        coco_val_gt = COCO(gt_val_path)
+        image_val_ids = coco_val_gt.getImgIds()[:MAX_IMAGES]
+        res_val_data = f"{output_root}/bbox_results_val_std{idx_}.json"
+
+        eval_sam(
+            coco_val_gt, image_val_ids, res_val_data, 
+            output_root, method=args.method,
+            number=idx_, val=True
+        )
+
     else:
         eval_sam(
             coco_gt, image_ids, res_data, 
             output_root, method=args.method
         )
+
 
 def ood_filter(args, output_root):
     """ Use sam and fewshot (maximum likelihood) to classify masks.
@@ -259,12 +280,13 @@ def ood_filter(args, output_root):
     :output_root (str) -> output folder location.
     """
     # STEP 1: create data loaders
-    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
+    labeled_loader, test_loader,_, _, validation_loader = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
     save_loader_to_json(test_loader, output_root, filename="test")
+    save_loader_to_json(validation_loader, output_root, filename="validation")
 
     # STEP 2: run the ood filter using inferences from SAM
     # sam instance - default values of the model
@@ -303,6 +325,15 @@ def ood_filter(args, output_root):
         ood_hist_bins=args.ood_histogram_bins
     )
 
+    # For validation
+    ood_filter_neg_likelihood.run_filter(
+        labeled_loader, validation_loader, 
+        dir_filtered_root=output_root,
+        ood_thresh=args.ood_thresh,
+        ood_hist_bins=args.ood_histogram_bins,
+        val=True
+    )
+
     # STEP 3: evaluate results
     # run for std 1 and 2
     for idx_ in range(1,4):
@@ -318,6 +349,18 @@ def ood_filter(args, output_root):
             number=idx_
         )
 
+        # Validation
+        gt_eval_path = f"{output_root}/validation.json"
+        coco_gt = COCO(gt_eval_path)
+        image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+        res_data = f"{output_root}/bbox_results_val_std{idx_}.json"
+
+        eval_sam(
+            coco_gt, image_ids, res_data, 
+            output_root, method=args.method,
+            number=idx_, val=True
+        )
+
 def selective_search(args, output_root):
     """ Run selective search (ss) and stores the results.
     Params
@@ -326,7 +369,7 @@ def selective_search(args, output_root):
     """
     # STEP 1: create data loaders
     # the loaders will load the images in numpy arrays
-    _, test_loader,_,_ = create_datasets_and_loaders(args)
+    _, test_loader,_,_,_ = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
@@ -401,12 +444,13 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="sv
     :output_root (str) -> output folder location.
     """
     # STEP 1: create data loaders
-    labeled_loader, test_loader,_,_ = create_datasets_and_loaders(args)
+    labeled_loader, test_loader,_,_, validation_loader = create_datasets_and_loaders(args)
     # save new gt into a separate json file
     if not os.path.exists(output_root):
         os.makedirs(output_root)
     # save gt
     save_loader_to_json(test_loader, output_root, "test")
+    save_loader_to_json(validation_loader, output_root, "validation")
 
     # sam instance - default values of the model
     # STEP 2: create an SAM instance
@@ -433,9 +477,9 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="sv
 
     # run filter using the backbone, sam, and ood
     mahalanobis_filter.run_filter(
-        labeled_loader, test_loader, 
+        labeled_loader, test_loader, validation_loader,
         dir_filtered_root=output_root,
-        mahalanobis_method=mahalanobis_method, beta=beta
+        mahalanobis_method=mahalanobis_method, beta=beta, seed=args.seed,
     )
 
     # STEP 3: evaluate results
@@ -449,6 +493,16 @@ def mahalanobis_filter(args, is_single_class=True, output_root=None, dim_red="sv
         eval_sam(
             coco_gt, image_ids, res_data, 
             output_root, method=args.method,
+        )
+
+        gt_eval_path = f"{output_root}/validation.json"
+        coco_eval_gt = COCO(gt_eval_path)
+        image_eval_ids = coco_eval_gt.getImgIds()[:MAX_IMAGES]
+        res_eval_data = f"{output_root}/bbox_results_val.json"
+
+        eval_sam(
+            coco_eval_gt, image_eval_ids, res_eval_data, 
+            output_root, method=args.method, val=True
         )
     else:
         print("No implemented for multiple class mahalanobis!")
@@ -509,7 +563,7 @@ def subspaces_filter(args, is_single_class=True, output_root=None):
 
 if __name__ == '__main__':
     args = get_parameters()
-    root_output = "/content/drive/MyDrive/Agro-Pineapples/output/" #"./output/"
+    root_output = "./output/" #/content/drive/MyDrive/Agro-Pineapples/output/" #"./output/"
 
 
     if not args.numa == -1:

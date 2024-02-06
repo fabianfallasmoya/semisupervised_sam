@@ -202,10 +202,10 @@ class MahalanobisFilter:
         
     def run_filter(self,
         labeled_loader,
-        unlabeled_loader,
+        unlabeled_loader, validation_loader,
         dir_filtered_root = None, get_background_samples=True,
         num_classes:float=0, 
-        mahalanobis_method="regularization", beta=1):
+        mahalanobis_method="regularization", beta=1, seed=10):
 
         # 1. Get feature maps from the labeled set
         labeled_imgs = []
@@ -240,15 +240,15 @@ class MahalanobisFilter:
         # labels start from index 1 to n, translate to start from 0 to n.
         labels = [int(i-1) for i in labeled_labels]
 
+        # Selecting random 1000 background features for dimensionality reduction
+        if len(back_imgs_context) > self.feature_extractor.features_size:
+            back_imgs_context = random.Random(seed).sample(back_imgs_context, self.feature_extractor.features_size)
+
         # get all features maps using: the extractor + the imgs
         all_labeled_features = self.get_all_features(labeled_imgs)
         all_background_features = self.get_all_features(back_imgs_context)
 
-        # Selecting random 1000 background features for dimensionality reduction
-        if len(all_background_features) > 1000:
-            all_background_features = random.sample(all_background_features, 1000)
-
-        all_context_features = all_labeled_features + random.sample(all_background_features, len(all_labeled_features))
+        all_context_features = all_labeled_features + random.Random(seed).sample(all_background_features, len(all_labeled_features))
         all_features = all_labeled_features + all_background_features
 
         #----------------------------------------------------------------
@@ -307,6 +307,22 @@ class MahalanobisFilter:
             print("Q1: ", Q1)
             print("Q3: ", Q3)
 
+        self.evaluate(unlabeled_loader, dir_filtered_root, "bbox_results")
+        self.evaluate(validation_loader, dir_filtered_root, "bbox_results_val")
+
+        stats_count = {
+            "labeled": int(all_labeled_features.shape[0]), 
+            "dimension": int(dim_original),
+            "reduced_dimension": int(all_labeled_features.shape[1]), 
+            "all": int(all_features.shape[0]), 
+            "context": int(all_context_features.shape[0]),
+            "threshold": float(self.threshold),
+            "max": float(np.max(distances.numpy()))}
+        
+        self.save_stats(dir_filtered_root, stats_count)
+
+
+    def evaluate(self, dataloader, dir_filtered_root, result_name):
         # go through each batch unlabeled
         distances_all = 0
 
@@ -317,7 +333,7 @@ class MahalanobisFilter:
 
         # 3. Get batch of unlabeled // Evaluating the likelihood of unlabeled data
         for (batch_num, batch) in tqdm(
-            enumerate(unlabeled_loader), total= len(unlabeled_loader), desc="Iterate batch unlabeled"
+            enumerate(dataloader), total= len(dataloader), desc="Iterate dataloader"
         ):
             unlabeled_imgs = []
             # every batch is a tuple: (torch.imgs , metadata_and_bboxes)
@@ -381,23 +397,16 @@ class MahalanobisFilter:
 
         if len(results) > 0:
             # write output
-            results_file = f"{dir_filtered_root}/bbox_results.json"
+            results_file = f"{dir_filtered_root}/{result_name}.json"
+
             if os.path.isfile(results_file):
                 os.remove(results_file)
             json.dump(results, open(results_file, 'w'), indent=4)
-        
-        stats_count = {
-            "labeled": int(all_labeled_features.shape[0]), 
-            "dimension": int(dim_original),
-            "reduced_dimension": int(all_labeled_features.shape[1]), 
-            "all": int(all_features.shape[0]), 
-            "context": int(all_context_features.shape[0]),
-            "threshold": float(self.threshold),
-            "max": float(np.max(distances.numpy()))}
-        
+
+    def save_stats(self, dir_filtered_root, stats):
         file_name_stats = f"{dir_filtered_root}/stats.json"
         with open(file_name_stats, 'w') as file:
-            file.write(json.dumps(stats_count))
+            file.write(json.dumps(stats))
 
     def get_all_features(self, images):
         """
