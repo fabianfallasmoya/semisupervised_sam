@@ -93,6 +93,22 @@ def sam_simple(args, output_root):
         output_root, method=args.method
     )
 
+    # Validation
+    MAX_IMAGES = 100000
+    gt_eval_path = f"{output_root}/validation.json"
+    coco_gt = COCO(f"{gt_eval_path}")
+    image_ids = coco_gt.getImgIds()[:MAX_IMAGES]
+    res_data = f"{output_root}/bbox_results_val.json"
+
+    save_inferences_simple(
+        sam, validation_l, res_data,
+        args.use_sam_embeddings
+    )
+    eval_sam(
+        coco_gt, image_ids, res_data, 
+        output_root, method=args.method, val=True
+    )
+
 def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     """ Use sam and fewshot to classify the masks.
     Params
