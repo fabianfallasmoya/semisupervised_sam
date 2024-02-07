@@ -226,19 +226,18 @@ def create_dataset_ood(name, root, splits=('train'),
                         # get validation samples
                         not_labeled_idx = [i for i in all_idx if i not in labeled_idx]
                         validation_idx = random.Random(seed).sample(not_labeled_idx, k=validation_samples)
-                        test_idx = [i for i in all_idx if i not in validation_idx and i not in not_labeled_idx]
+                        test_idx = [i for i in all_idx if (i not in validation_idx + labeled_idx)]
                         full_labeled_idx = [i for i in ids if i not in test_idx]
-                        unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]                        
+                        unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]                  
                     else:
                         all_idx = random.sample(ids, k=total_samples)
                         labeled_idx = random.sample(all_idx, k=labeled_samples)
                         # get validation samples
                         not_labeled_idx = [i for i in all_idx if i not in labeled_idx]
                         validation_idx = random.sample(not_labeled_idx, k=validation_samples)
-                        test_idx = [i for i in all_idx if i not in validation_idx and i not in not_labeled_idx]
+                        test_idx = [i for i in all_idx if i not in validation_idx + labeled_idx]
                         full_labeled_idx = [i for i in ids if i not in test_idx]
-                        unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx]
-
+                        unlabeled_idx = [i for i in full_labeled_idx if i not in labeled_idx] 
                     # create folder
                     #ids_labeled.parent.mkdir(exist_ok=True, parents=True)
                     Path(root_ids).mkdir(parents=True, exist_ok=True)
