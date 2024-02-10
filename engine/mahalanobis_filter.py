@@ -307,9 +307,6 @@ class MahalanobisFilter:
             print("Q1: ", Q1)
             print("Q3: ", Q3)
 
-        self.evaluate(unlabeled_loader, dir_filtered_root, "bbox_results")
-        self.evaluate(validation_loader, dir_filtered_root, "bbox_results_val")
-
         stats_count = {
             "labeled": int(all_labeled_features.shape[0]), 
             "dimension": int(dim_original),
@@ -322,7 +319,9 @@ class MahalanobisFilter:
             "semi_positive_definite": bool(self.is_positive_semidefinite(self.inv_cov))}
         
         self.save_stats(dir_filtered_root, stats_count)
-
+        
+        self.evaluate(unlabeled_loader, dir_filtered_root, "bbox_results")
+        self.evaluate(validation_loader, dir_filtered_root, "bbox_results_val")
 
     def evaluate(self, dataloader, dir_filtered_root, result_name):
         # go through each batch unlabeled
