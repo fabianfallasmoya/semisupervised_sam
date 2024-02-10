@@ -317,7 +317,9 @@ class MahalanobisFilter:
             "all": int(all_features.shape[0]), 
             "context": int(all_context_features.shape[0]),
             "threshold": float(self.threshold),
-            "max": float(np.max(distances.numpy()))}
+            "max": float(np.max(distances.numpy())),
+            "positive_definite": bool(self.is_positive_definite(self.inv_cov)),
+            "semi_positive_definite": bool(self.is_positive_semidefinite(self.inv_cov))}
         
         self.save_stats(dir_filtered_root, stats_count)
 
