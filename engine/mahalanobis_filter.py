@@ -264,13 +264,6 @@ class MahalanobisFilter:
         all_features = torch.stack(all_features)        
 
         dim_original = all_features.shape[1]
-        #torch.save(support_features, "support_features.pt")
-        #torch.save(all_support_features, "all_support_features.pt")
-        #torch.save(all_features_maps_list, "all_features_maps_list.pt")
-
-        print("Support features shape: ", all_labeled_features.shape)
-        print("all_support_features shape: ", all_context_features.shape)
-        print("all_features_maps_list shape: ", all_features.shape)
 
         # 3. Calculating the sigma (covariance matrix), the distances 
         # with respect of the support features and get the threshold
@@ -290,7 +283,6 @@ class MahalanobisFilter:
             # Estimate covariance and mean for mahalanobis 
             if mahalanobis_method == "regularization":
                 self.fit_regularization(all_labeled_features, beta=beta, context_features=all_context_features)
-                print("Beta: ",  beta)
             else:
                 self.fit_normal(all_labeled_features)
 
@@ -303,9 +295,6 @@ class MahalanobisFilter:
             IQR = Q3 - Q1
             threshold = 1.5 * IQR #1.2 * IQR 
             self.threshold = Q3 + threshold 
-            print("threshold: ", threshold)
-            print("Q1: ", Q1)
-            print("Q3: ", Q3)
 
         stats_count = {
             "labeled": int(all_labeled_features.shape[0]), 
@@ -319,7 +308,7 @@ class MahalanobisFilter:
             "semi_positive_definite": bool(self.is_positive_semidefinite(self.inv_cov))}
         
         self.save_stats(dir_filtered_root, stats_count)
-        
+
         self.evaluate(unlabeled_loader, dir_filtered_root, "bbox_results")
         self.evaluate(validation_loader, dir_filtered_root, "bbox_results_val")
 
