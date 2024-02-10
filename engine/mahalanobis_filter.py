@@ -263,7 +263,7 @@ class MahalanobisFilter:
         all_context_features = torch.stack(all_context_features)        
         all_features = torch.stack(all_features)        
 
-        dim_original = all_features.shape[0]
+        dim_original = all_features.shape[1]
         #torch.save(support_features, "support_features.pt")
         #torch.save(all_support_features, "all_support_features.pt")
         #torch.save(all_features_maps_list, "all_features_maps_list.pt")
@@ -419,12 +419,12 @@ class MahalanobisFilter:
         # get feature maps from the images
         if self.use_sam_embeddings:
             with torch.no_grad():
-                for img in tqdm(images, desc="Extract features"):
+                for img in images:
                     t_temp = self.feature_extractor.get_embeddings(img)
                     features.append(t_temp.squeeze().cpu())
         else:
             with torch.no_grad():
-                for img in tqdm(images, desc="Extract features"):
+                for img in images:
                     t_temp = self.feature_extractor(img.unsqueeze(dim=0).to(self.device))
                     features.append(t_temp.squeeze().cpu())
         return features
