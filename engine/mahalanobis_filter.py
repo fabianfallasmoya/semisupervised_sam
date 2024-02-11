@@ -137,7 +137,7 @@ class MahalanobisFilter:
         else:
             print("The matrix is neither positive definite nor positive semi-definite.")
 
-    def fit_regularization(self, support_set, beta=1, context_features=None):
+    def fit_regularization(self, support_set, beta=1, context_features=None, lambda_mahalanobis=-1.0):
         # Based on the paper https://github.com/plai-group/simple-cnaps
         ## Lambda is the influence of the covariance matrix of the support set and context features.
         ## Beta is the influence of identical matrix. 
@@ -147,7 +147,11 @@ class MahalanobisFilter:
         if context_features != None:
             context_covariance_matrix = self.estimate_covariance(context_features) #self.estimate_covariance(context_features)
 
-        lambda_k_tau = (support_set.size(0) / (support_set.size(0) + 1))
+        if lambda_mahalanobis==-1.0:
+            print(lambda_mahalanobis)
+            lambda_k_tau = (support_set.size(0) / (support_set.size(0) + 1))
+        else:
+            lambda_k_tau = lambda_mahalanobis
 
         self.inv_cov = torch.inverse((lambda_k_tau * covariance_matrix) + ((1 - lambda_k_tau) * context_covariance_matrix) \
                     + (beta * torch.eye(support_set.size(1), support_set.size(1))))
@@ -205,7 +209,7 @@ class MahalanobisFilter:
         unlabeled_loader, validation_loader,
         dir_filtered_root = None, get_background_samples=True,
         num_classes:float=0, 
-        mahalanobis_method="regularization", beta=1, seed=10):
+        mahalanobis_method="regularization", beta=1, seed=10, lambda_mahalanobis=-1.0):
 
         # 1. Get feature maps from the labeled set
         labeled_imgs = []
@@ -241,8 +245,8 @@ class MahalanobisFilter:
         labels = [int(i-1) for i in labeled_labels]
 
         # Selecting random 1000 background features for dimensionality reduction
-        if len(back_imgs_context) > self.feature_extractor.features_size:
-            back_imgs_context = random.Random(seed).sample(back_imgs_context, self.feature_extractor.features_size)
+        if len(back_imgs_context) > 512:
+            back_imgs_context = random.Random(seed).sample(back_imgs_context, 512)
 
         # get all features maps using: the extractor + the imgs
         all_labeled_features = self.get_all_features(labeled_imgs)
@@ -282,7 +286,7 @@ class MahalanobisFilter:
             
             # Estimate covariance and mean for mahalanobis 
             if mahalanobis_method == "regularization":
-                self.fit_regularization(all_labeled_features, beta=beta, context_features=all_context_features)
+                self.fit_regularization(all_labeled_features, beta=beta, context_features=all_context_features, lambda_mahalanobis=lambda_mahalanobis)
             else:
                 self.fit_normal(all_labeled_features)
 
@@ -297,6 +301,7 @@ class MahalanobisFilter:
             self.threshold = Q3 + threshold 
 
         stats_count = {
+            "lambda_support_set": float(lambda_mahalanobis), 
             "labeled": int(all_labeled_features.shape[0]), 
             "dimension": int(dim_original),
             "reduced_dimension": int(all_labeled_features.shape[1]), 

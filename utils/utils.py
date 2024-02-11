@@ -113,6 +113,8 @@ def get_parameters():
     parser.add_argument('--mahalanobis', type=str, default="normal")
     parser.add_argument('--batch-size-validation', type=int, default=4)
     parser.add_argument('--ood-validation-samples', type=int, default=10)
+    parser.add_argument('--mahalanobis-lambda', type=float, default=-1.0)
+
 
     return parser.parse_args()
 
