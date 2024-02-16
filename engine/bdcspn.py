@@ -90,7 +90,7 @@ class BDCSPN(FewShot):
             support_features.append(t_temp.squeeze().cpu())
 
         # get prototypes and save them into cuda memory
-        self.support_features = torch.stack(support_features)
+        self.support_features = torch.stack(support_features).to(self.device)
         support_labels = torch.Tensor(support_labels)
         prototypes = compute_prototypes(self.support_features, support_labels)
         self.prototypes = prototypes.to(self.device)
