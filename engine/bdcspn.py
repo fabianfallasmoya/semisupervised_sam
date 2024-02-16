@@ -45,9 +45,9 @@ class BDCSPN(FewShot):
         Returns the embeddings from the backbone which is a timm model.
         """
         with torch.no_grad():
-            x = self.backbone.forward(img.unsqueeze(dim=0)).to(self.device)
+            x = self.backbone.forward(img.unsqueeze(dim=0).to(self.device))
         return x
-
+    
     def get_embeddings_sam(self, img):
         """
         Returns the embeddings from the backbone which SAM.
