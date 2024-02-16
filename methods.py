@@ -173,6 +173,7 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
             use_sam_embeddings=args.use_sam_embeddings,
             backbone=feature_extractor, 
             use_softmax=False,
+            device=args.device
         ).to(args.device)
     elif fewshot_method == Constants_MainMethod.FEWSHOT_2_CLASSES_PTMAP:
         fs_model = PTMAP(
