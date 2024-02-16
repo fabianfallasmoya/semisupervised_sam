@@ -117,6 +117,8 @@ class BDCSPN(FewShot):
             query_logits.argmax(-1), n_classes
         )
 
+        support_logits = support_logits.to(self.device)
+        one_hot_support_labels = support_logits.to(self.device)
         normalization_vector = (
             (one_hot_support_labels * support_logits).sum(0)
             + (one_hot_query_prediction * query_logits).sum(0)
