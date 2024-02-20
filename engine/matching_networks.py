@@ -120,14 +120,14 @@ class MatchingNetworks(FewShot):
                 t_temp = self.get_embeddings_timm(img)
             support_features.append(t_temp.squeeze().cpu())
         
-        support_features = torch.stack(support_features)
+        support_features = torch.stack(support_features).to(self.device)
         if self.is_single_class:
             raise NotImplementedError(
                 "Not implemented for single class.")
         else:
             self.contextualized_support_features = self.encode_support_features(
                 support_features
-            )
+            ).to(self.device)
             self.one_hot_support_labels = nn.functional.one_hot(torch.tensor(y_labels, dtype=torch.long)).float()        
             
     def forward(self, query_image: Tensor) -> Tensor:
@@ -148,7 +148,7 @@ class MatchingNetworks(FewShot):
         else:
             z_query = self.get_embeddings_timm(query_image)        
         
-        contextualized_query_features = self.encode_query_features(z_query)
+        contextualized_query_features = self.encode_query_features(z_query).to(self.device)
 
         # Compute the matrix of cosine similarities between all query images
         # and normalized support images
@@ -187,7 +187,7 @@ class MatchingNetworks(FewShot):
         support_features = support_features.to(self.device)  # Move the tensor to the CUDA device
         hidden_state = self.support_features_encoder(support_features.unsqueeze(0))[
             0
-        ].squeeze(0)
+        ].squeeze(0).to(self.device)
 
         # Following the paper, contextualized features are computed by adding original features, and
         # hidden state of both directions of the bidirectional LSTM.
@@ -209,8 +209,8 @@ class MatchingNetworks(FewShot):
         Returns:
             contextualized query features, with the same shape as input features
         """
-        hidden_state = query_features
-        cell_state = torch.zeros_like(query_features)
+        hidden_state = query_features.to(self.device)
+        cell_state = torch.zeros_like(query_features).to(self.device)
 
         # We do as many iterations through the LSTM cell as there are query instances
         # Check out the paper for more details about this!
