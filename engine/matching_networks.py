@@ -50,6 +50,7 @@ class MatchingNetworks(FewShot):
 
         self.feature_dimension = feature_dimension
         self.device = device
+        print(self.device)
 
         # These modules refine support and query feature vectors
         # using information from the whole support set
@@ -57,18 +58,18 @@ class MatchingNetworks(FewShot):
             support_encoder
             if support_encoder
             else default_matching_networks_support_encoder(self.feature_dimension)
-        )
+        ).to(self.device)
+
         self.query_features_encoding_cell = (
             query_encoder
             if query_encoder
             else default_matching_networks_query_encoder(self.feature_dimension)
-        )
-        self.softmax = nn.Softmax(dim=1)
+        ).to(self.device)
 
-        # Here we create the fields so that the model can store
-        # the computed information from one support set
-        self.contextualized_support_features = torch.tensor(())
-        self.one_hot_support_labels = torch.tensor(())
+        self.softmax = nn.Softmax(dim=1).to(self.device)
+
+        self.contextualized_support_features = torch.tensor(()).to(self.device)
+        self.one_hot_support_labels = torch.tensor(()).to(self.device)
         self.is_single_class = is_single_class
         self.use_sam_embeddings = use_sam_embeddings        
 
@@ -78,7 +79,7 @@ class MatchingNetworks(FewShot):
         """
         with torch.no_grad():
             x = self.backbone.forward(img.unsqueeze(dim=0).to(self.device))
-        return x
+        return x.to(self.device)
     
     def get_embeddings_sam(self, img):
         """
@@ -86,7 +87,7 @@ class MatchingNetworks(FewShot):
         """
         with torch.no_grad():
             x = self.backbone.get_embeddings(img)
-        return x
+        return x.to(self.device)
     
     def process_support_set(
         self,
@@ -103,7 +104,6 @@ class MatchingNetworks(FewShot):
             support_labels: labels of support set images of shape (n_support, )
         """
         support_features = []
-        self.num_samples = len(support_images)
 
         #---------------------------------------
         # split the ids
@@ -119,17 +119,16 @@ class MatchingNetworks(FewShot):
             else:
                 t_temp = self.get_embeddings_timm(img)
             support_features.append(t_temp.squeeze().cpu())
-        
+
         support_features = torch.stack(support_features).to(self.device)
         if self.is_single_class:
-            raise NotImplementedError(
-                "Not implemented for single class.")
+            raise NotImplementedError("Not implemented for single class.")
         else:
             self.contextualized_support_features = self.encode_support_features(
                 support_features
             ).to(self.device)
-            self.one_hot_support_labels = nn.functional.one_hot(torch.tensor(y_labels, dtype=torch.long)).float()        
-            
+            self.one_hot_support_labels = nn.functional.one_hot(torch.tensor(y_labels, dtype=torch.long)).float().to(self.device)
+
     def forward(self, query_image: Tensor) -> Tensor:
         """
         Overrides method forward in FewShotClassifier.
@@ -146,8 +145,8 @@ class MatchingNetworks(FewShot):
         if self.use_sam_embeddings:
             z_query = self.get_embeddings_sam(query_image)
         else:
-            z_query = self.get_embeddings_timm(query_image)        
-        
+            z_query = self.get_embeddings_timm(query_image)
+
         contextualized_query_features = self.encode_query_features(z_query).to(self.device)
 
         # Compute the matrix of cosine similarities between all query images
@@ -195,7 +194,7 @@ class MatchingNetworks(FewShot):
             support_features
             + hidden_state[:, : self.feature_dimension]
             + hidden_state[:, self.feature_dimension :]
-        )
+        ).to(self.device)
 
         return contextualized_support_features
 
@@ -217,14 +216,14 @@ class MatchingNetworks(FewShot):
         for _ in range(len(self.contextualized_support_features)):
             attention = self.softmax(
                 hidden_state.mm(self.contextualized_support_features.T)
-            )
+            ).to(self.device)
             read_out = attention.mm(self.contextualized_support_features)
-            lstm_input = torch.cat((query_features, read_out), 1)
+            lstm_input = torch.cat((query_features, read_out), 1).to(self.device)
 
             hidden_state, cell_state = self.query_features_encoding_cell(
                 lstm_input, (hidden_state, cell_state)
             )
-            hidden_state = hidden_state + query_features
+            hidden_state = hidden_state.to(self.device) + query_features
 
         return hidden_state
 
