@@ -256,6 +256,12 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
             args.use_sam_embeddings
         )
 
+        save_inferences_twoclasses(
+            fs_model, validation_loader, sam, 
+            output_root, trans_norm,
+            args.use_sam_embeddings, val=True
+        )
+
     # STEP 6: evaluate model
     if is_single_class:
         # for idx_ in range(1,4):
@@ -287,6 +293,18 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
         eval_sam(
             coco_gt, image_ids, res_data, 
             output_root, method=args.method
+        )
+
+        # Validation 
+        gt_val_path = f"{output_root}/validation.json"
+        coco_val_gt = COCO(gt_val_path)
+        image_val_ids = coco_val_gt.getImgIds()[:MAX_IMAGES]
+        res_val_data = f"{output_root}/bbox_results_val.json"
+
+        eval_sam(
+            coco_val_gt, image_val_ids, res_val_data, 
+            output_root, method=args.method,
+            val=True
         )
 
 
