@@ -117,8 +117,8 @@ def save_inferences_singleclass(
 
 def save_inferences_twoclasses(
     fs_model, unlabeled_loader, sam_model, 
-    filepath, trans_norm, use_sam_embeddings
-    ):
+    filepath, trans_norm, use_sam_embeddings,
+    val=False):
     results = []
     fs_model.backbone.use_fc = False
 
@@ -159,9 +159,19 @@ def save_inferences_twoclasses(
 
     if len(results) > 0:
         # write output
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        json.dump(results, open(filepath, 'w'), indent=4)
+        #if os.path.exists(filepath):
+        #    os.remove(filepath)
+        #json.dump(results, open(filepath, 'w'), indent=4)
+        if val:
+            f_ = f"{filepath}/bbox_results_val.json"
+            if os.path.exists(f_):
+                os.remove(f_)
+            json.dump(results, open(f_, 'w'), indent=4)
+        else:
+            f_ = f"{filepath}/bbox_results.json"
+            if os.path.exists(f_):
+                os.remove(f_)
+            json.dump(results, open(f_, 'w'), indent=4)
 
 def calculate_precision(coco_eval, iou_treshold_index, img_id_size):
     imgs = coco_eval.evalImgs
