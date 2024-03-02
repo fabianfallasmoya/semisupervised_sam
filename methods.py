@@ -252,7 +252,7 @@ def few_shot(args, is_single_class=None, output_root=None, fewshot_method=None):
     else:
         save_inferences_twoclasses(
             fs_model, test_loader, sam, 
-            res_data, trans_norm,
+            output_root, trans_norm,
             args.use_sam_embeddings
         )
 
